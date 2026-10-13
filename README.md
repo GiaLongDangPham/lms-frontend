@@ -35,7 +35,7 @@ npm run preview
 `preview` phục vụ thư mục `dist` tại `http://localhost:4173` sau build. Để preview gọi BE,
 thêm `http://localhost:4173` vào `CORS_ORIGINS` và khởi động lại backend.
 
-GitHub Actions thực hiện `npm ci` + `npm run check` khi mở PR hoặc push `main`.
+GitHub Actions thực hiện `npm ci` + `npm run check` khi mở PR hoặc push `main`/`dev`.
 Workflow hiện được chuẩn bị local; kết quả trên GitHub chỉ có sau khi push/PR.
 
 ## Cấu trúc và bàn giao F0
@@ -59,8 +59,19 @@ staging phải build lại. Không đặt DB URL, password hay token bí mật t
 DoD F0 tại CP1: build qua CI, staging chạy app shell và gọi được mock D2. Các module FE
 nghiệp vụ cần chạy API thật trên staging khi đóng issue. Cần ghi rõ ngoại lệ F0 với Kha.
 
-Branch: `F0-mo-ta-ngan` hoặc mã hoạt động tương ứng; commit `[Mã] ...`; PR `Closes #<issue>`.
+Branch: `F0-mo-ta-ngan` hoặc mã hoạt động tương ứng, tạo từ `dev`; commit `[Mã] ...`;
+PR vào `dev`, ghi `Closes #<issue>`.
 Long review PR của Khang; Khang review F2 của Long và F4 của Nam.
+
+## Quy trình nhánh
+
+- `dev` là nhánh tích hợp (integration branch). Nhánh tính năng (`F0-...`, `F1-...`, ...) tạo
+  từ `dev`, không phải `main`.
+- PR của thành viên mở vào `dev`, không mở thẳng vào `main`.
+- `main` chỉ được cập nhật qua PR từ `dev` tại các checkpoint (CP1, CP2, ...).
+- `docs/prototypes/` chứa file HTML tĩnh, không build, dùng để tham khảo/thảo luận luồng UI
+  trong nhóm; không phải code sản phẩm, không import vào app React.
+- Cả `main` và `dev` được bảo vệ trên GitHub: không push trực tiếp, chỉ merge qua PR.
 
 Tài liệu điều phối trong repo backend: `docs/technical-decisions.md`,
 `docs/S1-checklist.md`, `docs/kickoff-questions.md`.
