@@ -1,56 +1,101 @@
-import { useEffect, useState } from 'react';
-import { getHealth, getReadiness } from './lib/api';
+// [F0] App root — routing SPA theo 3 role (Admin, Teacher, Student)
+// react-router-dom v7 · AuthContext · ProtectedRoute theo role
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-type Status = 'idle' | 'loading' | 'connected' | 'disconnected';
-const labels: Record<Status, string> = {
-  idle: 'Chưa kiểm tra', loading: 'Đang kiểm tra…', connected: 'Đã kết nối', disconnected: 'Chưa kết nối',
-};
+// Layouts
+import AdminLayout from './layouts/AdminLayout';
+import TeacherLayout from './layouts/TeacherLayout';
+import StudentLayout from './layouts/StudentLayout';
+
+// Pages
+import LoginPage from './pages/LoginPage';
+import NotFoundPage from './pages/NotFoundPage';
+import AdminDashboardPage from './pages/admin/DashboardPage';
+import TeacherDashboardPage from './pages/teacher/DashboardPage';
+import StudentDashboardPage from './pages/student/DashboardPage';
+
+// ProtectedRoute
+import ProtectedRoute from './components/ProtectedRoute';
+import type { Role } from './lib/types';
+
+// Root redirect theo role của người dùng đang đăng nhập
+function RootRedirect() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="loading-screen" aria-label="Đang tải…">
+        <div className="loading-spinner" aria-hidden="true" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  const dashboardByRole: Record<Role, string> = {
+    ADMIN: '/admin',
+    TEACHER: '/teacher',
+    STUDENT: '/student',
+  };
+  return <Navigate to={dashboardByRole[user.role]} replace />;
+}
 
 export default function App() {
-  const [attempt, setAttempt] = useState(0);
-  const [backend, setBackend] = useState<Status>('idle');
-  const [database, setDatabase] = useState<Status>('idle');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    async function check() {
-      setBackend('loading');
-      setDatabase('loading');
-      const results = await Promise.allSettled([
-        getHealth(controller.signal), getReadiness(controller.signal),
-      ]);
-      if (controller.signal.aborted) return;
-      setBackend(results[0].status === 'fulfilled' ? 'connected' : 'disconnected');
-      setDatabase(results[1].status === 'fulfilled' && results[1].value.database === 'connected'
-        ? 'connected' : 'disconnected');
-    }
-    void check();
-    return () => controller.abort();
-  }, [attempt]);
-
-  const checking = backend === 'loading' || database === 'loading';
   return (
-    <main className="workspace">
-      <p className="eyebrow">LMS NHÓM 2 · S1</p>
-      <h1>Môi trường phát triển</h1>
-      <p className="intro">Khung dự án đã sẵn sàng để nhóm bắt đầu xây dựng hệ thống quản lý học tập.</p>
-      <section className="panel" aria-labelledby="connection-title">
-        <h2 id="connection-title">Kiểm tra kết nối</h2>
-        <div role="status" aria-live="polite" aria-atomic="true" aria-busy={checking}>
-          <dl>
-            <div><dt>Frontend React</dt><dd className="connected">Đang chạy</dd></div>
-            <div><dt>Backend Express</dt><dd className={backend}>{labels[backend]}</dd></div>
-            <div><dt>PostgreSQL</dt><dd className={database}>{labels[database]}</dd></div>
-          </dl>
-        </div>
-        <button type="button" disabled={checking} onClick={() => setAttempt((value) => value + 1)}>
-          {checking ? 'Đang kiểm tra…' : 'Kiểm tra lại'}
-        </button>
-        {(backend === 'disconnected' || database === 'disconnected') && (
-          <p className="hint">Mở README để kiểm tra cấu hình môi trường, backend và PostgreSQL, rồi thử lại.</p>
-        )}
-      </section>
-      <p className="footnote">Bước tiếp theo: chốt thiết kế, dựng giao diện theo UI kit và phát triển các module.</p>
-    </main>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          {/* Trang gốc — redirect theo role */}
+          <Route path="/" element={<RootRedirect />} />
+
+          {/* Đăng nhập */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Admin routes */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRole="ADMIN">
+                <AdminLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="users" element={<AdminDashboardPage />} />
+            <Route path="classes" element={<AdminDashboardPage />} />
+          </Route>
+
+          {/* Teacher routes */}
+          <Route
+            path="/teacher"
+            element={
+              <ProtectedRoute allowedRole="TEACHER">
+                <TeacherLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<TeacherDashboardPage />} />
+            <Route path="classes" element={<TeacherDashboardPage />} />
+            <Route path="assignments" element={<TeacherDashboardPage />} />
+          </Route>
+
+          {/* Student routes */}
+          <Route
+            path="/student"
+            element={
+              <ProtectedRoute allowedRole="STUDENT">
+                <StudentLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<StudentDashboardPage />} />
+            <Route path="classes" element={<StudentDashboardPage />} />
+            <Route path="assignments" element={<StudentDashboardPage />} />
+            <Route path="notifications" element={<StudentDashboardPage />} />
+          </Route>
+
+          {/* 404 */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
