@@ -114,6 +114,7 @@ export default function LoginPage() {
 
       <p className="auth-hint">
         Tài khoản được cấp sẵn. Không có chức năng tự đăng ký.
+        Demo: AD001 / GV001 / SV001 — mật khẩu <code>local-demo-password</code>.
       </p>
     </AuthLayout>
   );

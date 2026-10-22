@@ -14,6 +14,14 @@ import NotFoundPage from './pages/NotFoundPage';
 import AdminDashboardPage from './pages/admin/DashboardPage';
 import TeacherDashboardPage from './pages/teacher/DashboardPage';
 import StudentDashboardPage from './pages/student/DashboardPage';
+import TeacherAssignmentsPage from './pages/teacher/AssignmentsPage';
+import TeacherAssignmentFormPage from './pages/teacher/AssignmentFormPage';
+import TeacherAssignmentSubmissionsPage from './pages/teacher/AssignmentSubmissionsPage';
+import StudentAssignmentsPage from './pages/student/AssignmentsPage';
+import StudentAssignmentDetailPage from './pages/student/AssignmentDetailPage';
+import StudentSubmissionFormPage from './pages/student/SubmissionFormPage';
+import StudentSubmissionHistoryPage from './pages/student/SubmissionHistoryPage';
+import StudentSubmissionVersionPage from './pages/student/SubmissionVersionPage';
 
 // ProtectedRoute
 import ProtectedRoute from './components/ProtectedRoute';
@@ -74,7 +82,10 @@ export default function App() {
           >
             <Route index element={<TeacherDashboardPage />} />
             <Route path="classes" element={<TeacherDashboardPage />} />
-            <Route path="assignments" element={<TeacherDashboardPage />} />
+            <Route path="assignments" element={<TeacherAssignmentsPage />} />
+            <Route path="assignments/new" element={<TeacherAssignmentFormPage />} />
+            <Route path="assignments/:assignmentId/edit" element={<TeacherAssignmentFormPage />} />
+            <Route path="assignments/:assignmentId/submissions" element={<TeacherAssignmentSubmissionsPage />} />
           </Route>
 
           {/* Student routes */}
@@ -88,7 +99,11 @@ export default function App() {
           >
             <Route index element={<StudentDashboardPage />} />
             <Route path="classes" element={<StudentDashboardPage />} />
-            <Route path="assignments" element={<StudentDashboardPage />} />
+            <Route path="assignments" element={<StudentAssignmentsPage />} />
+            <Route path="assignments/:assignmentId" element={<StudentAssignmentDetailPage />} />
+            <Route path="assignments/:assignmentId/submit" element={<StudentSubmissionFormPage />} />
+            <Route path="assignments/:assignmentId/history" element={<StudentSubmissionHistoryPage />} />
+            <Route path="assignments/:assignmentId/history/:versionNumber" element={<StudentSubmissionVersionPage />} />
             <Route path="notifications" element={<StudentDashboardPage />} />
           </Route>
 
