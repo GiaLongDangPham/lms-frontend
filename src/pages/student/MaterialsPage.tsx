@@ -107,7 +107,7 @@ export default function StudentMaterialsPage() {
         title="Tài liệu môn học"
         subtitle={`${classItem.name} · ${classItem.code} · ${materials.length} tài liệu`}
       />
-      <ClassNavTabs classId={classItem.id} active="materials" />
+      <ClassNavTabs role="STUDENT" classId={classItem.id} active="materials" />
 
       {downloadError && <DownloadError message={downloadError} />}
 

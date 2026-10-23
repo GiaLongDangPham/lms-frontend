@@ -214,6 +214,14 @@ export function updateAssignment(
   });
 }
 
+const uploadExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'zip'];
+
+export const uploadAccept = uploadExtensions.map((extension) => `.${extension}`).join(',');
+
+export function findUnsupportedUpload(files: File[]): File | undefined {
+  return files.find((file) => !uploadExtensions.includes(file.name.split('.').pop()?.toLowerCase() ?? ''));
+}
+
 export function uploadFile(file: File): Promise<FileRecord> {
   const body = new FormData();
   body.set('file', file);

@@ -61,23 +61,6 @@ export function AssignmentHeader({
   );
 }
 
-export function AssignmentTabs({
-  selected,
-  className,
-}: {
-  selected: string;
-  className?: string;
-}) {
-  return (
-    <nav className="assignment-tabs" aria-label="Thông tin lớp học">
-      <span>Tổng quan</span>
-      <span>Tài liệu</span>
-      <span className={selected === 'assignments' ? 'assignment-tab--active' : undefined}>Bài tập</span>
-      {className && <span className="assignment-tabs-context">{className}</span>}
-    </nav>
-  );
-}
-
 export function AssignmentFiles({
   files,
   onDownload,

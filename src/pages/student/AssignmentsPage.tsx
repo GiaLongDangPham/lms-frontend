@@ -105,7 +105,7 @@ export default function StudentAssignmentsPage() {
         }
       />
 
-      {selectedClass && <ClassNavTabs classId={selectedClass.id} active="assignments" />}
+      {selectedClass && <ClassNavTabs role="STUDENT" classId={selectedClass.id} active="assignments" />}
 
       <div className="assignment-filters">
         <label className="assignment-filter">

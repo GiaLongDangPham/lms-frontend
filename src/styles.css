@@ -511,38 +511,6 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   gap: var(--space-3);
 }
 
-.assignment-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-}
-
-.assignment-tabs > span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: #fff;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-}
-
-.assignment-tabs > .assignment-tab--active {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: #fff;
-}
-
-.assignment-tabs > .assignment-tabs-context {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-muted);
-}
-
 .assignment-card-list {
   display: flex;
   flex-direction: column;

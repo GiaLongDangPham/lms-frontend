@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  findUnsupportedUpload,
   formatFileSize,
   getLockMessage,
   isSubmissionLocked,
@@ -84,6 +85,17 @@ describe('assignment list across pages', () => {
     const assignments = await listAllAssignments('class-1');
 
     expect(assignments.map((assignment) => assignment.id)).toEqual(['first', 'second']);
+  });
+});
+
+describe('upload file types', () => {
+  it('accepts supported extensions regardless of case', () => {
+    expect(findUnsupportedUpload([new File(['x'], 'Chuong1.PDF'), new File(['x'], 'slides.pptx')])).toBeUndefined();
+  });
+
+  it('returns the first unsupported file', () => {
+    const script = new File(['x'], 'setup.exe');
+    expect(findUnsupportedUpload([new File(['x'], 'a.docx'), script])).toBe(script);
   });
 });
 

@@ -85,7 +85,7 @@ export default function AssignmentDetailPage() {
   return (
     <section className="assignment-page">
       <AssignmentHeader title={assignment.title} subtitle="Bài tập của tôi" />
-      <ClassNavTabs classId={assignment.classId} active="assignments" />
+      <ClassNavTabs role="STUDENT" classId={assignment.classId} active="assignments" />
 
       <div className="assignment-badges">
         {submission && currentVersion

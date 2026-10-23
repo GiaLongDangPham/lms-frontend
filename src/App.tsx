@@ -17,6 +17,8 @@ import StudentDashboardPage from './pages/student/DashboardPage';
 import TeacherAssignmentsPage from './pages/teacher/AssignmentsPage';
 import TeacherAssignmentFormPage from './pages/teacher/AssignmentFormPage';
 import TeacherAssignmentSubmissionsPage from './pages/teacher/AssignmentSubmissionsPage';
+import TeacherMaterialsPage from './pages/teacher/MaterialsPage';
+import TeacherMaterialFormPage from './pages/teacher/MaterialFormPage';
 import StudentAssignmentsPage from './pages/student/AssignmentsPage';
 import StudentAssignmentDetailPage from './pages/student/AssignmentDetailPage';
 import StudentSubmissionFormPage from './pages/student/SubmissionFormPage';
@@ -83,6 +85,9 @@ export default function App() {
           >
             <Route index element={<TeacherDashboardPage />} />
             <Route path="classes" element={<TeacherDashboardPage />} />
+            <Route path="materials" element={<TeacherMaterialsPage />} />
+            <Route path="materials/new" element={<TeacherMaterialFormPage />} />
+            <Route path="materials/:materialId/edit" element={<TeacherMaterialFormPage />} />
             <Route path="assignments" element={<TeacherAssignmentsPage />} />
             <Route path="assignments/new" element={<TeacherAssignmentFormPage />} />
             <Route path="assignments/:assignmentId/edit" element={<TeacherAssignmentFormPage />} />
