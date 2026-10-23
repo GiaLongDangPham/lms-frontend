@@ -22,6 +22,7 @@ import StudentAssignmentDetailPage from './pages/student/AssignmentDetailPage';
 import StudentSubmissionFormPage from './pages/student/SubmissionFormPage';
 import StudentSubmissionHistoryPage from './pages/student/SubmissionHistoryPage';
 import StudentSubmissionVersionPage from './pages/student/SubmissionVersionPage';
+import StudentMaterialsPage from './pages/student/MaterialsPage';
 
 // ProtectedRoute
 import ProtectedRoute from './components/ProtectedRoute';
@@ -99,6 +100,7 @@ export default function App() {
           >
             <Route index element={<StudentDashboardPage />} />
             <Route path="classes" element={<StudentDashboardPage />} />
+            <Route path="materials" element={<StudentMaterialsPage />} />
             <Route path="assignments" element={<StudentAssignmentsPage />} />
             <Route path="assignments/:assignmentId" element={<StudentAssignmentDetailPage />} />
             <Route path="assignments/:assignmentId/submit" element={<StudentSubmissionFormPage />} />

@@ -93,7 +93,7 @@ export interface Page<T> {
 
 const listLimit = 100;
 
-function pageQuery(cursor?: string | null): string {
+export function pageQuery(cursor?: string | null): string {
   const params = new URLSearchParams({ limit: String(listLimit) });
   if (cursor) params.set('cursor', cursor);
   return `?${params.toString()}`;
@@ -154,6 +154,28 @@ export function listAssignments(
   cursor?: string | null,
 ): Promise<Page<Assignment>> {
   return apiFetch(`/classes/${encodeURIComponent(classId)}/assignments${pageQuery(cursor)}`);
+}
+
+export async function listAllAssignments(classId: string): Promise<Assignment[]> {
+  const assignments: Assignment[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: Page<Assignment> = await listAssignments(classId, cursor);
+    assignments.push(...page.items);
+    cursor = page.page.nextCursor;
+  } while (cursor);
+  return assignments;
+}
+
+// Upcoming deadlines first (nearest first), then overdue ones (most recently overdue first).
+export function sortAssignmentsByDeadline<T extends { deadlineAt: string }>(
+  items: T[],
+  now: number = Date.now(),
+): T[] {
+  const deadline = (item: T) => new Date(item.deadlineAt).getTime();
+  const upcoming = items.filter((item) => deadline(item) >= now).sort((a, b) => deadline(a) - deadline(b));
+  const overdue = items.filter((item) => deadline(item) < now).sort((a, b) => deadline(b) - deadline(a));
+  return [...upcoming, ...overdue];
 }
 
 export function getAssignment(assignmentId: string): Promise<Assignment> {
@@ -255,9 +277,19 @@ export function formatDateTime(value: string): string {
   }).format(new Date(value));
 }
 
+export function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+const sizeFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+
 export function formatFileSize(sizeBytes: number): string {
   if (sizeBytes < 1024 * 1024) return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
-  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${sizeFormat.format(sizeBytes / (1024 * 1024))} MB`;
 }
 
 export function toDateTimeInput(value: string): string {
