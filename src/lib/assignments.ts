@@ -6,6 +6,7 @@ export interface ClassSummary {
   courseCode: string;
   name: string;
   term: string;
+  description?: string | null;
 }
 
 export interface FileRecord {
