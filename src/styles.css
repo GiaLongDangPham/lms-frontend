@@ -374,6 +374,15 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   box-shadow: var(--shadow-sm);
 }
 
+.btn--danger {
+  background: var(--color-error);
+  color: #fff;
+}
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(0.9);
+  box-shadow: var(--shadow-sm);
+}
+
 /* Ghost */
 .btn--ghost {
   background: transparent;
@@ -420,7 +429,6 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
 
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .sidebar { display: none; }
   .main-content { padding: var(--space-4); }
   .auth-card { padding: var(--space-8) var(--space-6); }
 }
@@ -954,7 +962,7 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   font-weight: 500;
 }
 
-.admin-dialog {
+.app-dialog {
   width: min(560px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
   padding: 0;
@@ -963,11 +971,11 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   box-shadow: var(--shadow-md);
 }
 
-.admin-dialog::backdrop {
+.app-dialog::backdrop {
   background: rgba(23, 33, 44, 0.45);
 }
 
-.admin-dialog-header {
+.app-dialog-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -975,15 +983,40 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   border-bottom: 1px solid var(--color-border);
 }
 
-.admin-dialog-header h2 {
+.app-dialog-header h2 {
   font-size: var(--font-size-md);
 }
 
-.admin-dialog-body {
+.app-dialog-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6) var(--space-6);
+}
+
+.app-dialog--confirm {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.app-dialog--confirm .app-dialog-body {
+  padding-top: var(--space-6);
+}
+
+.app-dialog-title {
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+}
+
+.app-dialog-message {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.app-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
 
 .admin-pick-list,
@@ -1032,3 +1065,91 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .admin-result--ok span:last-child { color: var(--color-success); }
 .admin-result--fail span:last-child { color: var(--color-error); }
+
+/* App shell: off-canvas sidebar on narrow screens */
+.app-topbar,
+.app-menu-close,
+.app-sidebar-backdrop {
+  display: none;
+}
+
+.app-menu-button,
+.app-menu-close {
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.app-menu-button:hover,
+.app-menu-close:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+@media (max-width: 1024px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .app-topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: var(--space-3) var(--space-4);
+    background: #fff;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .app-topbar .sidebar-brand-name {
+    flex: 0 1 auto;
+  }
+
+  .app-menu-button,
+  .app-menu-close {
+    display: inline-flex;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    width: min(var(--sidebar-width), 85vw);
+    height: 100dvh;
+    box-shadow: var(--shadow-md);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .app-layout--menu-open .sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease, visibility 0s;
+  }
+
+  .app-layout--menu-open .app-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(23, 33, 44, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .app-layout--menu-open .sidebar {
+    transition: none;
+  }
+}

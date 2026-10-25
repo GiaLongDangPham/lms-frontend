@@ -10,6 +10,7 @@ import {
   LoadingState,
   SuccessNotice,
 } from '../../components/assignment/AssignmentUI';
+import { useConfirm } from '../../hooks/useConfirm';
 
 const roleLabels: Record<Role, string> = { ADMIN: 'Quản trị', TEACHER: 'Giảng viên', STUDENT: 'Sinh viên' };
 const roleOrder: Record<Role, number> = { ADMIN: 0, TEACHER: 1, STUDENT: 2 };
@@ -61,18 +62,18 @@ function ResetPasswordDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="admin-dialog"
+      className="app-dialog"
       aria-labelledby="reset-password-title"
       onCancel={(event) => {
         event.preventDefault();
         if (!saving) onClose();
       }}
     >
-      <header className="admin-dialog-header">
+      <header className="app-dialog-header">
         <h2 id="reset-password-title">Đặt lại mật khẩu</h2>
         <button type="button" className="btn btn--ghost btn--sm" onClick={onClose} disabled={saving}>Đóng</button>
       </header>
-      <form className="admin-dialog-body" onSubmit={(event) => void handleSubmit(event)} noValidate>
+      <form className="app-dialog-body" onSubmit={(event) => void handleSubmit(event)} noValidate>
         <p className="assignment-muted">
           {user.schoolCode} · {user.fullName}. Mọi phiên đăng nhập hiện tại của tài khoản sẽ bị đăng xuất.
         </p>
@@ -118,6 +119,7 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -154,10 +156,21 @@ export default function AdminUsersPage() {
 
   async function toggleActive(user: User) {
     const locking = user.isActive;
-    const confirmation = locking
-      ? `Khoá tài khoản ${user.schoolCode}? Người dùng bị đăng xuất và không đăng nhập được cho tới khi mở khoá.`
-      : `Mở khoá tài khoản ${user.schoolCode}?`;
-    if (!window.confirm(confirmation)) return;
+    const confirmed = await confirm(locking
+      ? {
+          title: `Khoá tài khoản ${user.schoolCode}?`,
+          message: `${user.fullName} bị đăng xuất ngay và không đăng nhập được cho tới khi mở khoá.`,
+          confirmLabel: 'Khoá',
+        }
+      : {
+          title: `Mở khoá tài khoản ${user.schoolCode}?`,
+          message: user.role === 'STUDENT'
+            ? `${user.fullName} đăng nhập lại được. Bài đã công bố điểm trong các lớp sinh viên đang học sẽ tự nhận điểm 0 nếu chưa có kết quả.`
+            : `${user.fullName} đăng nhập lại được.`,
+          confirmLabel: 'Mở khoá',
+          tone: 'primary',
+        });
+    if (!confirmed) return;
     setBusyId(user.id);
     setActionError(null);
     setNotice(null);
@@ -273,6 +286,8 @@ export default function AdminUsersPage() {
           </table>
         </div>
       )}
+
+      {confirmDialog}
 
       {resetTarget && (
         <ResetPasswordDialog

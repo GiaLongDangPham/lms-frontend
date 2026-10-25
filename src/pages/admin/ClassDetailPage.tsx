@@ -19,6 +19,7 @@ import {
   SuccessNotice,
 } from '../../components/assignment/AssignmentUI';
 import MemberPickerDialog from '../../components/admin/MemberPickerDialog';
+import { useConfirm } from '../../hooks/useConfirm';
 
 export default function AdminClassDetailPage() {
   const { classId = '' } = useParams();
@@ -33,6 +34,7 @@ export default function AdminClassDetailPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pickerRole, setPickerRole] = useState<ManagedRole | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -77,14 +79,23 @@ export default function AdminClassDetailPage() {
     }
   }
 
-  function handleRemoveTeacher(teacher: User) {
-    if (!window.confirm(`Gỡ ${teacher.fullName} khỏi lớp? Giảng viên sẽ không còn quản lý lớp này.`)) return;
+  async function handleRemoveTeacher(teacher: User) {
+    const confirmed = await confirm({
+      title: 'Gỡ giảng viên khỏi lớp?',
+      message: `${teacher.fullName} (${teacher.schoolCode}) sẽ không còn quản lý lớp ${classItem?.courseCode ?? ''} · ${classItem?.code ?? ''}.`,
+      confirmLabel: 'Gỡ',
+    });
+    if (!confirmed) return;
     void runAction(teacher.id, () => removeTeacher(classId, teacher.id), `Đã gỡ ${teacher.fullName} khỏi lớp.`);
   }
 
-  function handleDeactivate(enrollment: Enrollment) {
-    const confirmation = `Ngừng ghi danh ${enrollment.student.fullName}? Sinh viên sẽ không còn thấy lớp; bài nộp và điểm cũ vẫn được giữ.`;
-    if (!window.confirm(confirmation)) return;
+  async function handleDeactivate(enrollment: Enrollment) {
+    const confirmed = await confirm({
+      title: 'Ngừng ghi danh sinh viên?',
+      message: `${enrollment.student.fullName} (${enrollment.student.schoolCode}) sẽ không còn thấy lớp; bài nộp và điểm cũ vẫn được giữ.`,
+      confirmLabel: 'Ngừng ghi danh',
+    });
+    if (!confirmed) return;
     void runAction(
       enrollment.id,
       () => setEnrollmentActive(classId, enrollment.id, false),
@@ -150,7 +161,7 @@ export default function AdminClassDetailPage() {
                         type="button"
                         className="btn btn--secondary btn--sm"
                         disabled={busyId !== null}
-                        onClick={() => handleRemoveTeacher(teacher)}
+                        onClick={() => void handleRemoveTeacher(teacher)}
                       >
                         {busyId === teacher.id ? 'Đang gỡ…' : 'Gỡ'}
                       </button>
@@ -194,7 +205,7 @@ export default function AdminClassDetailPage() {
                         type="button"
                         className="btn btn--secondary btn--sm"
                         disabled={busyId !== null}
-                        onClick={() => handleDeactivate(enrollment)}
+                        onClick={() => void handleDeactivate(enrollment)}
                       >
                         {busyId === enrollment.id ? 'Đang xử lý…' : 'Ngừng ghi danh'}
                       </button>
@@ -227,6 +238,8 @@ export default function AdminClassDetailPage() {
           </details>
         )}
       </section>
+
+      {confirmDialog}
 
       {pickerRole && (
         <MemberPickerDialog

@@ -133,20 +133,20 @@ export default function MemberPickerDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="admin-dialog"
+      className="app-dialog"
       aria-labelledby="member-picker-title"
       onCancel={(event) => {
         event.preventDefault();
         if (!saving) finish();
       }}
     >
-      <header className="admin-dialog-header">
+      <header className="app-dialog-header">
         <h2 id="member-picker-title">Thêm {roleLabel}</h2>
         <button type="button" className="btn btn--ghost btn--sm" onClick={finish} disabled={saving}>Đóng</button>
       </header>
 
       {results ? (
-        <div className="admin-dialog-body">
+        <div className="app-dialog-body">
           <ul className="admin-result-list">
             {results.map((result) => (
               <li key={result.user.id} className={result.ok ? 'admin-result--ok' : 'admin-result--fail'}>
@@ -160,7 +160,7 @@ export default function MemberPickerDialog({
           </div>
         </div>
       ) : (
-        <div className="admin-dialog-body">
+        <div className="app-dialog-body">
           {isStudent && (
             <div className="class-nav-tabs" role="tablist" aria-label="Cách thêm sinh viên">
               <button
