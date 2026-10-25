@@ -7,6 +7,8 @@ import {
   listAllAssignments,
   listAssignmentSubmissions,
   sortAssignmentsByDeadline,
+  uploadFile,
+  maxUploadBytes,
   type Submission,
 } from './assignments';
 
@@ -107,6 +109,18 @@ describe('assignment list across pages', () => {
 });
 
 describe('upload file types', () => {
+  it('accepts Q08 source, spreadsheet and image extensions and rejects extensionless files', () => {
+    expect(findUnsupportedUpload(['answer.ts', 'data.xlsx', 'photo.JPG', 'notes.md'].map(name => new File(['x'], name))))
+      .toBeUndefined();
+    const extensionless = new File(['x'], 'pdf');
+    expect(findUnsupportedUpload([extensionless])).toBe(extensionless);
+  });
+  it('rejects empty and oversized files before sending a request', async () => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    await expect(uploadFile(new File([], 'empty.txt'))).rejects.toThrow('25 MiB');
+    await expect(uploadFile(new File([new Uint8Array(maxUploadBytes + 1)], 'huge.txt'))).rejects.toThrow('25 MiB');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('accepts supported extensions regardless of case', () => {
     expect(findUnsupportedUpload([new File(['x'], 'Chuong1.PDF'), new File(['x'], 'slides.pptx')])).toBeUndefined();
   });
