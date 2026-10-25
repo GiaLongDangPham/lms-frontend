@@ -44,6 +44,24 @@ describe('submission lock state', () => {
     expect(getLockMessage(gradedSubmission)).toBe('Bài đã được chấm. Bạn không thể nộp lại.');
   });
 
+  it('locks a submission whose deadline has passed and explains how to reopen it', () => {
+    const lateSubmission = { ...submission, canSubmit: false, lockedReason: 'DEADLINE_PASSED' as const };
+    expect(isSubmissionLocked(lateSubmission)).toBe(true);
+    expect(getLockMessage(lateSubmission)).toBe('Đã quá hạn nộp. Bạn chỉ có thể nộp lại khi giảng viên gia hạn.');
+  });
+
+  it('accepts deadline-locked submissions in the teacher submission list', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      items: [{ ...submission, canSubmit: false, lockedReason: 'DEADLINE_PASSED' }],
+      page: { nextCursor: null },
+    }))));
+
+    const page = await listAssignmentSubmissions('assignment-1');
+
+    expect(page.items[0]?.lockedReason).toBe('DEADLINE_PASSED');
+  });
+
   it('surfaces malformed static mock submissions instead of rendering fake rows', async () => {
     vi.stubGlobal('localStorage', { getItem: () => null });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
