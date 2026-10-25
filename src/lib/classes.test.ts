@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildClassMeta, formatTermLabel, loadMyClassCards, type ClassCard } from './classes';
+import {
+  buildClassMeta,
+  filterClassCards,
+  formatTermLabel,
+  groupClassCardsByTerm,
+  listTeacherNames,
+  listTerms,
+  loadMyClassCards,
+  sortClassCards,
+  type ClassCard,
+} from './classes';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -128,24 +138,76 @@ describe('class dashboard data', () => {
   });
 });
 
-describe('class meta line', () => {
-  const card: ClassCard = {
+function makeCard(overrides: Partial<ClassCard>): ClassCard {
+  return {
     id: 'class-1',
     name: 'Cơ sở dữ liệu',
+    courseCode: 'CO2013',
     code: 'L01',
     term: '2026-HK1',
     termLabel: 'Học kỳ 1 · 2026–2027',
     description: null,
     teacherNames: ['Trần Minh'],
     studentCount: 32,
+    ...overrides,
   };
+}
 
-  it('joins section, student count and teachers', () => {
-    expect(buildClassMeta(card)).toBe('L01 · 32 sinh viên · Giảng viên Trần Minh');
+describe('class meta line', () => {
+  const card = makeCard({});
+
+  it('joins course code, section, student count and teachers', () => {
+    expect(buildClassMeta(card)).toBe('CO2013 · L01 · 32 sinh viên · Giảng viên Trần Minh');
   });
 
   it('omits the parts the API did not provide', () => {
-    expect(buildClassMeta({ ...card, studentCount: null })).toBe('L01 · Giảng viên Trần Minh');
-    expect(buildClassMeta({ ...card, studentCount: null, teacherNames: [] })).toBe('L01');
+    expect(buildClassMeta({ ...card, studentCount: null })).toBe('CO2013 · L01 · Giảng viên Trần Minh');
+    expect(buildClassMeta({ ...card, studentCount: null, teacherNames: [] })).toBe('CO2013 · L01');
+  });
+});
+
+describe('class list search, filters and grouping', () => {
+  const database = makeCard({ id: 'db' });
+  const networks = makeCard({
+    id: 'net', name: 'Mạng máy tính', courseCode: 'CO3093', code: 'L02', teacherNames: ['Lê Hoa'],
+  });
+  const oldCourse = makeCard({
+    id: 'old', name: 'Giải tích', courseCode: 'MT1003', code: 'L05', term: '2025-HK2',
+    termLabel: 'Học kỳ 2 · 2025–2026', teacherNames: ['Trần Minh', 'Phạm Lan'],
+  });
+  const cards = [database, networks, oldCourse];
+  const noFilter = { query: '', term: '', teacher: '' };
+
+  it('searches course name, course code, section and teacher name case-insensitively', () => {
+    const ids = (query: string) => filterClassCards(cards, { ...noFilter, query }).map((card) => card.id);
+    expect(ids('co2013')).toEqual(['db']);
+    expect(ids('MẠNG')).toEqual(['net']);
+    expect(ids('l05')).toEqual(['old']);
+    expect(ids('phạm lan')).toEqual(['old']);
+  });
+
+  it('filters by term and by teacher', () => {
+    expect(filterClassCards(cards, { ...noFilter, term: '2025-HK2' }).map((card) => card.id)).toEqual(['old']);
+    expect(filterClassCards(cards, { ...noFilter, teacher: 'Trần Minh' }).map((card) => card.id)).toEqual(['db', 'old']);
+  });
+
+  it('sorts by course name, course code or section', () => {
+    expect(sortClassCards(cards, 'name').map((card) => card.id)).toEqual(['db', 'old', 'net']);
+    expect(sortClassCards(cards, 'courseCode').map((card) => card.id)).toEqual(['db', 'net', 'old']);
+    expect(sortClassCards(cards, 'code').map((card) => card.id)).toEqual(['db', 'net', 'old']);
+  });
+
+  it('groups cards by term with the newest term first', () => {
+    const groups = groupClassCardsByTerm(cards);
+    expect(groups.map((group) => [group.term, group.cards.map((card) => card.id)])).toEqual([
+      ['2026-HK1', ['db', 'net']],
+      ['2025-HK2', ['old']],
+    ]);
+    expect(groups[1]?.termLabel).toBe('Học kỳ 2 · 2025–2026');
+  });
+
+  it('lists distinct terms and teacher names for the filter options', () => {
+    expect(listTerms(cards)).toEqual(['2026-HK1', '2025-HK2']);
+    expect(listTeacherNames(cards)).toEqual(['Lê Hoa', 'Phạm Lan', 'Trần Minh']);
   });
 });

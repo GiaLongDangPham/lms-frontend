@@ -7,6 +7,7 @@ export type ClassViewerRole = 'TEACHER' | 'STUDENT';
 export interface ClassCard {
   id: string;
   name: string;
+  courseCode: string;
   code: string;
   term: string;
   termLabel: string;
@@ -58,6 +59,7 @@ async function toClassCard(classItem: ClassSummary, role: ClassViewerRole): Prom
   return {
     id: classItem.id,
     name: classItem.name,
+    courseCode: classItem.courseCode,
     code: classItem.code,
     term: classItem.term,
     termLabel: formatTermLabel(classItem.term),
@@ -74,8 +76,54 @@ export async function loadMyClassCards(role: ClassViewerRole): Promise<ClassCard
 }
 
 export function buildClassMeta(card: ClassCard): string {
-  const parts = [card.code];
+  const parts = [card.courseCode, card.code].filter(Boolean);
   if (card.studentCount !== null) parts.push(`${card.studentCount} sinh viên`);
   if (card.teacherNames.length > 0) parts.push(`Giảng viên ${card.teacherNames.join(', ')}`);
   return parts.join(' · ');
+}
+
+export interface ClassCardFilters {
+  query: string;
+  term: string;
+  teacher: string;
+}
+
+export type ClassCardSort = 'name' | 'courseCode' | 'code';
+
+export interface ClassTermGroup {
+  term: string;
+  termLabel: string;
+  cards: ClassCard[];
+}
+
+const normalize = (text: string) => text.toLocaleLowerCase('vi');
+
+export function filterClassCards(cards: ClassCard[], { query, term, teacher }: ClassCardFilters): ClassCard[] {
+  const keyword = normalize(query.trim());
+  return cards.filter((card) => {
+    if (term && card.term !== term) return false;
+    if (teacher && !card.teacherNames.includes(teacher)) return false;
+    if (!keyword) return true;
+    return normalize(`${card.name} ${card.courseCode} ${card.code} ${card.teacherNames.join(' ')}`).includes(keyword);
+  });
+}
+
+export function sortClassCards(cards: ClassCard[], sortKey: ClassCardSort): ClassCard[] {
+  return [...cards].sort((a, b) => a[sortKey].localeCompare(b[sortKey], 'vi') || a.name.localeCompare(b.name, 'vi'));
+}
+
+export function groupClassCardsByTerm(cards: ClassCard[]): ClassTermGroup[] {
+  const groups = new Map<string, ClassCard[]>();
+  for (const card of cards) groups.set(card.term, [...(groups.get(card.term) ?? []), card]);
+  return [...groups.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([term, groupCards]) => ({ term, termLabel: formatTermLabel(term), cards: groupCards }));
+}
+
+export function listTerms(cards: ClassCard[]): string[] {
+  return [...new Set(cards.map((card) => card.term))].sort((a, b) => b.localeCompare(a));
+}
+
+export function listTeacherNames(cards: ClassCard[]): string[] {
+  return [...new Set(cards.flatMap((card) => card.teacherNames))].sort((a, b) => a.localeCompare(b, 'vi'));
 }

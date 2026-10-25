@@ -572,13 +572,27 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   flex: 1;
 }
 
-.class-card h2 {
+.class-card h3 {
   font-size: var(--font-size-xl);
   font-weight: 700;
 }
 
 .class-card .assignment-card-actions {
   margin-top: var(--space-2);
+}
+
+.class-term-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.class-term-heading {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .class-nav-tabs {
