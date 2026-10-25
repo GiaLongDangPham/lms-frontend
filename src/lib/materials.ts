@@ -1,5 +1,23 @@
 import { apiFetch } from './apiClient';
-import { formatFileSize, pageQuery, type FileRecord, type Page } from './assignments';
+import { formatFileSize, pageQuery, uploadFile, type FileRecord, type Page } from './assignments';
+
+// One cache per form: retries reuse successful PENDING uploads; removed File objects can be collected.
+export function createMaterialFileUploader() {
+  const uploaded = new WeakMap<File, { record: FileRecord; expiresAt: number }>();
+  return async (files: File[]): Promise<FileRecord[]> => {
+    const records: FileRecord[] = [];
+    for (const file of files) {
+      const cached = uploaded.get(file);
+      if (cached && cached.expiresAt > Date.now()) records.push(cached.record);
+      else {
+        const record = await uploadFile(file);
+        uploaded.set(file, { record, expiresAt: Date.now() + 23 * 60 * 60 * 1000 });
+        records.push(record);
+      }
+    }
+    return records;
+  };
+}
 
 export interface Material {
   id: string;

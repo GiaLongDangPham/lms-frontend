@@ -4,13 +4,13 @@ import {
   downloadFile,
   findUnsupportedUpload,
   formatFileSize,
+  maxUploadBytes,
   uploadAccept,
-  uploadFile,
   type ClassSummary,
   type FileRecord,
 } from '../../lib/assignments';
 import { listAllClasses } from '../../lib/classes';
-import { createMaterial, fileTypeLabel, getMaterial, updateMaterial } from '../../lib/materials';
+import { createMaterial, createMaterialFileUploader, fileTypeLabel, getMaterial, updateMaterial } from '../../lib/materials';
 import {
   AssignmentHeader,
   DownloadError,
@@ -31,6 +31,7 @@ export default function MaterialFormPage() {
   const [description, setDescription] = useState('');
   const [existingFiles, setExistingFiles] = useState<FileRecord[]>([]);
   const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [uploadSelectedFiles] = useState(createMaterialFileUploader);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,8 +83,13 @@ export default function MaterialFormPage() {
     const files = Array.from(selectedFiles);
     const unsupported = findUnsupportedUpload(files);
     if (unsupported) {
-      setError(`${unsupported.name}: chỉ hỗ trợ PDF, Word, PowerPoint hoặc file nén.`);
+      setError(`${unsupported.name}: loại tệp không được hỗ trợ. Xem danh sách ở mục chọn tệp.`);
       return;
+    }
+    const invalidSize = files.find(file => file.size === 0 || file.size > maxUploadBytes);
+    if (invalidSize) { setError(`${invalidSize.name}: tệp phải có dữ liệu và không quá 25 MiB.`); return; }
+    if (existingFiles.length + newFiles.length + files.length > 10) {
+      setError('Mỗi tài liệu có tối đa 10 tệp.'); return;
     }
     setError(null);
     setNewFiles((current) => [...current, ...files]);
@@ -115,8 +121,7 @@ export default function MaterialFormPage() {
 
     setSaving(true);
     try {
-      const uploadedFiles: FileRecord[] = [];
-      for (const file of newFiles) uploadedFiles.push(await uploadFile(file));
+      const uploadedFiles = await uploadSelectedFiles(newFiles);
       const payload = {
         title: title.trim(),
         description: description.trim() || null,
@@ -182,12 +187,13 @@ export default function MaterialFormPage() {
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={4}
+            maxLength={10000}
           />
         </label>
 
         <div className="assignment-dropzone">
           <strong>Chọn tệp từ máy tính</strong>
-          <p>PDF, Word, PowerPoint hoặc file nén.</p>
+          <p>Tối đa 10 tệp, 25 MiB/tệp. Hỗ trợ PDF, Office, văn bản, mã nguồn, ảnh và ZIP. Không nhận file thực thi hoặc Office có macro.</p>
           <label className="btn btn--secondary assignment-file-picker">
             Chọn tệp
             <input

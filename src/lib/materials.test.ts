@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createMaterial,
+  createMaterialFileUploader,
   fileTypeLabel,
   listAllMaterials,
   summarizeMaterialFiles,
@@ -9,11 +10,54 @@ import {
 } from './materials';
 import type { FileRecord } from './assignments';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 function material(id: string, createdAt: string): Material {
   return { id, classId: 'class-1', title: id, description: null, files: [], createdAt };
 }
+
+describe('material upload retries', () => {
+  const record = (id: string): FileRecord => ({ id, originalName: `${id}.txt`, mimeType: 'text/plain',
+    sizeBytes: 5, createdAt: '2026-10-25T00:00:00Z' });
+
+  it('reuses a successful upload when saving the material fails and is retried', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(record('file-1')), { status: 201 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(material('saved', '2026-10-25T00:00:00Z'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const upload = createMaterialFileUploader(); const files = [new File(['notes'], 'notes.txt')];
+    const first = await upload(files);
+    await expect(createMaterial('class-1', { title: 'Notes', description: null, fileIds: first.map(file => file.id) }))
+      .rejects.toMatchObject({ status: 503 });
+    const retry = await upload(files);
+    await createMaterial('class-1', { title: 'Notes', description: null, fileIds: retry.map(file => file.id) });
+    expect(retry).toEqual(first);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/files'))).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries only the failed file after a partial upload failure', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(record('file-1')), { status: 201 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(record('file-2')), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const upload = createMaterialFileUploader(); const files = [new File(['one'], 'one.txt'), new File(['two'], 'two.txt')];
+    await expect(upload(files)).rejects.toMatchObject({ status: 503 });
+    expect((await upload(files)).map(file => file.id)).toEqual(['file-1', 'file-2']);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('uploads again before the server-side pending-file TTL can expire', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(record('file-1')), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(record('file-2')), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const upload = createMaterialFileUploader(); const files = [new File(['one'], 'one.txt')];
+    expect((await upload(files))[0]?.id).toBe('file-1');
+    clock.mockReturnValue(1_000 + 23 * 60 * 60 * 1000);
+    expect((await upload(files))[0]?.id).toBe('file-2');
+  });
+});
 
 describe('file type label', () => {
   it('uses the upper-case file extension', () => {

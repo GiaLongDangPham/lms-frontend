@@ -217,15 +217,19 @@ export function updateAssignment(
   });
 }
 
-const uploadExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'zip'];
+const uploadExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'json',
+  'xml', 'html', 'css', 'c', 'h', 'cpp', 'hpp', 'java', 'py', 'js', 'ts', 'sql', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'zip'];
+export const maxUploadBytes = 25 * 1024 * 1024;
 
 export const uploadAccept = uploadExtensions.map((extension) => `.${extension}`).join(',');
 
 export function findUnsupportedUpload(files: File[]): File | undefined {
-  return files.find((file) => !uploadExtensions.includes(file.name.split('.').pop()?.toLowerCase() ?? ''));
+  return files.find((file) => !file.name.includes('.') || !uploadExtensions.includes(file.name.split('.').pop()?.toLowerCase() ?? ''));
 }
 
 export function uploadFile(file: File): Promise<FileRecord> {
+  if (file.size === 0 || file.size > maxUploadBytes) return Promise.reject(new Error(`${file.name}: tệp phải có dữ liệu và không quá 25 MiB.`));
+  if (findUnsupportedUpload([file])) return Promise.reject(new Error(`${file.name}: loại tệp không được hỗ trợ.`));
   const body = new FormData();
   body.set('file', file);
   return apiFetch('/files', { method: 'POST', body });
