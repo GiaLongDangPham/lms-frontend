@@ -27,6 +27,10 @@ export default function ProtectedRoute({ children, allowedRole }: ProtectedRoute
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (user.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   if (user.role !== allowedRole) {
     // Chuyển về dashboard đúng role
     const dashboardByRole: Record<Role, string> = {

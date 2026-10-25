@@ -10,6 +10,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (schoolCode: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  endSession: () => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -50,12 +51,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout(): Promise<void> {
-    await apiLogout();
+    try {
+      await apiLogout();
+    } finally {
+      setUser(null);
+    }
+  }
+
+  // The backend revokes every session after a password change, so only local state needs clearing.
+  function endSession(): void {
+    clearStoredToken();
     setUser(null);
   }
 
   return (
-    <AuthContext value={{ user, isLoading, login, logout }}>
+    <AuthContext value={{ user, isLoading, login, logout, endSession }}>
       {children}
     </AuthContext>
   );

@@ -26,6 +26,14 @@ export function ErrorState({
   );
 }
 
+export function SuccessNotice({ message }: { message: string }) {
+  return (
+    <section className="assignment-notice assignment-result" role="status">
+      <p>{message}</p>
+    </section>
+  );
+}
+
 export function EmptyState({
   title,
   children,

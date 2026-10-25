@@ -3,8 +3,8 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const NAV_ITEMS = [
-  { to: '/admin/users', label: 'Tài khoản', icon: '👤' },
   { to: '/admin/classes', label: 'Lớp học', icon: '🏫' },
+  { to: '/admin/users', label: 'Tài khoản', icon: '👤' },
 ];
 
 export default function AdminLayout() {
