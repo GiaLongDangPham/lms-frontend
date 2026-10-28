@@ -142,6 +142,9 @@ export default function AssignmentDetailPage() {
           <strong>Kết quả đã công bố</strong>
           <p>Điểm: {result.score} / {assignment.maxScore}</p>
           {result.feedback && <p>Nhận xét: {result.feedback}</p>}
+          <Link className="btn btn--secondary" to={`/student/assignments/${assignment.id}/result`}>
+            Xem kết quả và lịch sử
+          </Link>
         </section>
       ) : (
         <section className="assignment-notice">

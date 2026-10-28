@@ -233,7 +233,11 @@ export async function getMySubmission(assignmentId: string): Promise<Submission 
 
 export async function getMyPublishedResult(assignmentId: string): Promise<PublishedResult | null> {
   try {
-    return await apiFetch(`/assignments/${encodeURIComponent(assignmentId)}/my-result`);
+    const result = await apiFetch<PublishedResult>(`/assignments/${encodeURIComponent(assignmentId)}/my-result`);
+    if (result.status !== 'PUBLISHED') {
+      throw new Error('API trả về kết quả chưa công bố cho tài khoản sinh viên.');
+    }
+    return result;
   } catch (error: unknown) {
     if (error instanceof ApiClientError && error.status === 404) return null;
     throw error;

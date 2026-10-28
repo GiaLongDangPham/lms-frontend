@@ -3,36 +3,34 @@ import { Link, useParams } from 'react-router-dom';
 import {
   downloadFile,
   formatDateTime,
-  getAssignment,
-  listAssignmentSubmissions,
-  listEnrollments,
-  type Assignment,
-  type Enrollment,
   type FileRecord,
-  type Submission,
 } from '../../lib/assignments';
+import {
+  getAssignmentGradebook,
+  type AssignmentGradebook,
+  type GradebookRow,
+} from '../../lib/grades';
 import {
   AssignmentHeader,
   ErrorState,
   LoadingState,
 } from '../../components/assignment/AssignmentUI';
 
-type SubmissionRow = {
-  student: Submission['student'];
-  submission: Submission | null;
-};
+type RowStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'LATE' | 'GRADED';
 
-function currentVersion(submission: Submission | null) {
-  return submission?.versions.find((version) => version.versionNumber === submission.currentVersionNumber) ?? null;
+function currentVersion(row: GradebookRow) {
+  return row.submission?.versions.find(
+    (version) => version.versionNumber === row.submission?.currentVersionNumber,
+  ) ?? null;
 }
 
-function rowStatus(row: SubmissionRow): 'NOT_SUBMITTED' | 'SUBMITTED' | 'LATE' | 'GRADED' {
+function rowStatus(row: GradebookRow): RowStatus {
   if (!row.submission) return 'NOT_SUBMITTED';
-  if (row.submission.grade) return 'GRADED';
-  return currentVersion(row.submission)?.isLate ? 'LATE' : 'SUBMITTED';
+  if (row.grade) return 'GRADED';
+  return currentVersion(row)?.isLate ? 'LATE' : 'SUBMITTED';
 }
 
-const statusLabels = {
+const statusLabels: Record<RowStatus, string> = {
   NOT_SUBMITTED: 'Chưa nộp',
   SUBMITTED: 'Đã nộp',
   LATE: 'Nộp trễ',
@@ -41,8 +39,7 @@ const statusLabels = {
 
 export default function AssignmentSubmissionsPage() {
   const { assignmentId = '' } = useParams();
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
-  const [rows, setRows] = useState<SubmissionRow[]>([]);
+  const [gradebook, setGradebook] = useState<AssignmentGradebook | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -52,43 +49,22 @@ export default function AssignmentSubmissionsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadSubmissions() {
+    async function loadGradebook() {
       setLoading(true);
       setError(null);
       try {
-        const loadedAssignment = await getAssignment(assignmentId);
-        const [submissionPage, enrollmentPage] = await Promise.all([
-          listAssignmentSubmissions(assignmentId),
-          listEnrollments(loadedAssignment.classId),
-        ]);
-        if (cancelled) return;
-
-        const submissionsByStudent = new Map(
-          submissionPage.items.map((submission) => [submission.student.id, submission]),
-        );
-        const enrollmentRows = enrollmentPage.items
-          .filter((enrollment) => enrollment.isActive)
-          .map((enrollment: Enrollment) => ({
-            student: enrollment.student,
-            submission: submissionsByStudent.get(enrollment.student.id) ?? null,
-          }));
-        const knownStudentIds = new Set(enrollmentRows.map((row) => row.student.id));
-        const remainingSubmissions = submissionPage.items
-          .filter((submission) => !knownStudentIds.has(submission.student.id))
-          .map((submission) => ({ student: submission.student, submission }));
-
-        setAssignment(loadedAssignment);
-        setRows([...enrollmentRows, ...remainingSubmissions]);
+        const result = await getAssignmentGradebook(assignmentId);
+        if (!cancelled) setGradebook(result);
       } catch (loadError: unknown) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Không tải được danh sách bài nộp.');
+          setError(loadError instanceof Error ? loadError.message : 'Không tải được bảng điểm.');
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
-    void loadSubmissions();
+    void loadGradebook();
     return () => {
       cancelled = true;
     };
@@ -103,20 +79,20 @@ export default function AssignmentSubmissionsPage() {
     }
   }
 
-  const filteredRows = useMemo(() => rows.filter((row) => {
+  const filteredRows = useMemo(() => gradebook?.rows.filter((row) => {
     const matchesQuery = `${row.student.fullName} ${row.student.schoolCode}`.toLocaleLowerCase('vi')
       .includes(query.trim().toLocaleLowerCase('vi'));
-    const matchesStatus = statusFilter === 'ALL' || rowStatus(row) === statusFilter;
-    return matchesQuery && matchesStatus;
-  }), [query, rows, statusFilter]);
+    return matchesQuery && (statusFilter === 'ALL' || rowStatus(row) === statusFilter);
+  }) ?? [], [gradebook, query, statusFilter]);
 
-  if (loading) return <LoadingState label="Đang tải danh sách bài nộp…" />;
-  if (error || !assignment) return <ErrorState message={error ?? 'Không tìm thấy bài tập.'} />;
+  if (loading) return <LoadingState label="Đang tải bảng điểm…" />;
+  if (error || !gradebook) return <ErrorState message={error ?? 'Không tìm thấy bài tập.'} />;
 
+  const { assignment, rows } = gradebook;
   const submittedCount = rows.filter((row) => row.submission !== null).length;
   const lateCount = rows.filter((row) => rowStatus(row) === 'LATE').length;
-  const gradedCount = rows.filter((row) => rowStatus(row) === 'GRADED').length;
-  const publishedCount = rows.filter((row) => row.submission?.grade?.status === 'PUBLISHED').length;
+  const gradedCount = rows.filter((row) => row.grade !== null).length;
+  const publishedCount = rows.filter((row) => row.grade?.status === 'PUBLISHED' || row.autoZeroPublished).length;
 
   return (
     <section className="assignment-page">
@@ -175,9 +151,12 @@ export default function AssignmentSubmissionsPage() {
             </thead>
             <tbody>
               {filteredRows.map((row) => {
-                const version = currentVersion(row.submission);
+                const version = currentVersion(row);
                 const firstFile = version?.files[0];
                 const status = rowStatus(row);
+                const gradeStatus = row.grade?.status === 'PUBLISHED' || row.autoZeroPublished
+                  ? 'PUBLISHED'
+                  : row.grade?.status;
                 return (
                   <tr key={row.student.id}>
                     <td>{row.student.fullName} · {row.student.schoolCode}</td>
@@ -187,23 +166,35 @@ export default function AssignmentSubmissionsPage() {
                         {statusLabels[status]}
                       </span>
                     </td>
-                    <td>{row.submission?.grade?.score ?? '—'}</td>
                     <td>
-                      {row.submission?.grade
-                        ? <span className={`status-badge status-badge--${row.submission.grade.status === 'PUBLISHED' ? 'success' : 'draft'}`}>
-                            {row.submission.grade.status === 'PUBLISHED' ? 'Đã công bố' : 'Bản nháp'}
-                          </span>
-                        : '—'}
+                      {row.grade?.score ?? (row.autoZeroPublished ? 0 : '—')}
                     </td>
                     <td>
-                      {firstFile && (
-                        <button
-                          type="button"
-                          className="btn btn--secondary"
-                          onClick={() => void handleDownload(firstFile)}
-                        >
-                          Tải bài nộp
-                        </button>
+                      {gradeStatus
+                        ? <span className={`status-badge status-badge--${gradeStatus === 'PUBLISHED' ? 'success' : 'draft'}`}>
+                            {gradeStatus === 'PUBLISHED' ? 'Đã công bố' : 'Bản nháp'}
+                          </span>
+                        : row.submission ? 'Chưa chấm' : '—'}
+                    </td>
+                    <td className="assignment-row-actions">
+                      {row.submission && (
+                        <>
+                          <Link
+                            className="btn btn--secondary"
+                            to={`/teacher/assignments/${assignment.id}/submissions/${row.submission.id}/grade`}
+                          >
+                            {row.grade ? 'Sửa điểm' : 'Chấm bài'}
+                          </Link>
+                          {firstFile && (
+                            <button
+                              type="button"
+                              className="btn btn--secondary"
+                              onClick={() => void handleDownload(firstFile)}
+                            >
+                              Tải bài nộp
+                            </button>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>
@@ -213,6 +204,11 @@ export default function AssignmentSubmissionsPage() {
           </table>
         </div>
       )}
+      <div className="assignment-form-actions">
+        <Link className="btn btn--primary" to={`/teacher/assignments/${assignment.id}/publish`}>
+          Xem trước & công bố điểm
+        </Link>
+      </div>
     </section>
   );
 }

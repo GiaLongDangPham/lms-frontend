@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getLockMessage,
+  getMyPublishedResult,
   isSubmissionLocked,
   listAssignmentSubmissions,
   type Submission,
@@ -49,5 +50,17 @@ describe('submission lock state', () => {
 
     await expect(listAssignmentSubmissions('assignment-1'))
       .rejects.toThrow('không đúng cấu trúc OpenAPI');
+  });
+
+  it('does not expose a draft result through the student result endpoint', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      assignmentId: 'assignment-1',
+      score: 8,
+      status: 'DRAFT',
+    }))));
+
+    await expect(getMyPublishedResult('assignment-1'))
+      .rejects.toThrow('kết quả chưa công bố');
   });
 });
