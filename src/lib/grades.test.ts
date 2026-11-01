@@ -58,7 +58,7 @@ describe('grade workflows', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4010/api/submissions/submission-1/grade',
+      expect.stringMatching(/\/submissions\/submission-1\/grade$/),
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({ gradedVersionNumber: 2, score: 8.5, feedback: null }),

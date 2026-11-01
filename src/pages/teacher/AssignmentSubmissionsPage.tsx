@@ -176,11 +176,11 @@ export default function AssignmentSubmissionsPage() {
                           </span>
                         : row.submission ? 'Chưa chấm' : '—'}
                     </td>
-                    <td className="assignment-row-actions">
+                    <td>
                       {row.submission && (
-                        <>
+                        <div className="assignment-row-actions">
                           <Link
-                            className="btn btn--secondary"
+                            className="btn btn--secondary btn--sm"
                             to={`/teacher/assignments/${assignment.id}/submissions/${row.submission.id}/grade`}
                           >
                             {row.grade ? 'Sửa điểm' : 'Chấm bài'}
@@ -188,13 +188,13 @@ export default function AssignmentSubmissionsPage() {
                           {firstFile && (
                             <button
                               type="button"
-                              className="btn btn--secondary"
+                              className="btn btn--secondary btn--sm"
                               onClick={() => void handleDownload(firstFile)}
                             >
                               Tải bài nộp
                             </button>
                           )}
-                        </>
+                        </div>
                       )}
                     </td>
                   </tr>
