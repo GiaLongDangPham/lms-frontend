@@ -11,12 +11,19 @@ import StudentLayout from './layouts/StudentLayout';
 // Pages
 import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
-import AdminDashboardPage from './pages/admin/DashboardPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
+import AdminClassesPage from './pages/admin/ClassesPage';
+import AdminClassFormPage from './pages/admin/ClassFormPage';
+import AdminClassDetailPage from './pages/admin/ClassDetailPage';
+import AdminUsersPage from './pages/admin/UsersPage';
+import AdminUserFormPage from './pages/admin/UserFormPage';
 import TeacherDashboardPage from './pages/teacher/DashboardPage';
 import StudentDashboardPage from './pages/student/DashboardPage';
 import TeacherAssignmentsPage from './pages/teacher/AssignmentsPage';
 import TeacherAssignmentFormPage from './pages/teacher/AssignmentFormPage';
 import TeacherAssignmentSubmissionsPage from './pages/teacher/AssignmentSubmissionsPage';
+import TeacherMaterialsPage from './pages/teacher/MaterialsPage';
+import TeacherMaterialFormPage from './pages/teacher/MaterialFormPage';
 import GradeSubmissionPage from './pages/teacher/GradeSubmissionPage';
 import PublishAssignmentGradesPage from './pages/teacher/PublishAssignmentGradesPage';
 import StudentAssignmentsPage from './pages/student/AssignmentsPage';
@@ -25,6 +32,7 @@ import StudentAssignmentResultPage from './pages/student/AssignmentResultPage';
 import StudentSubmissionFormPage from './pages/student/SubmissionFormPage';
 import StudentSubmissionHistoryPage from './pages/student/SubmissionHistoryPage';
 import StudentSubmissionVersionPage from './pages/student/SubmissionVersionPage';
+import StudentMaterialsPage from './pages/student/MaterialsPage';
 
 // ProtectedRoute
 import ProtectedRoute from './components/ProtectedRoute';
@@ -41,6 +49,7 @@ function RootRedirect() {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
   const dashboardByRole: Record<Role, string> = {
     ADMIN: '/admin',
     TEACHER: '/teacher',
@@ -59,6 +68,7 @@ export default function App() {
 
           {/* Đăng nhập */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
 
           {/* Admin routes */}
           <Route
@@ -69,9 +79,14 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<AdminDashboardPage />} />
-            <Route path="users" element={<AdminDashboardPage />} />
-            <Route path="classes" element={<AdminDashboardPage />} />
+            <Route index element={<Navigate to="classes" replace />} />
+            <Route path="classes" element={<AdminClassesPage />} />
+            <Route path="classes/new" element={<AdminClassFormPage />} />
+            <Route path="classes/:classId" element={<AdminClassDetailPage />} />
+            <Route path="classes/:classId/edit" element={<AdminClassFormPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="users/new" element={<AdminUserFormPage />} />
+            <Route path="users/:userId/edit" element={<AdminUserFormPage />} />
           </Route>
 
           {/* Teacher routes */}
@@ -85,6 +100,9 @@ export default function App() {
           >
             <Route index element={<TeacherDashboardPage />} />
             <Route path="classes" element={<TeacherDashboardPage />} />
+            <Route path="materials" element={<TeacherMaterialsPage />} />
+            <Route path="materials/new" element={<TeacherMaterialFormPage />} />
+            <Route path="materials/:materialId/edit" element={<TeacherMaterialFormPage />} />
             <Route path="assignments" element={<TeacherAssignmentsPage />} />
             <Route path="assignments/new" element={<TeacherAssignmentFormPage />} />
             <Route path="assignments/:assignmentId/edit" element={<TeacherAssignmentFormPage />} />
@@ -104,6 +122,7 @@ export default function App() {
           >
             <Route index element={<StudentDashboardPage />} />
             <Route path="classes" element={<StudentDashboardPage />} />
+            <Route path="materials" element={<StudentMaterialsPage />} />
             <Route path="assignments" element={<StudentAssignmentsPage />} />
             <Route path="assignments/:assignmentId" element={<StudentAssignmentDetailPage />} />
             <Route path="assignments/:assignmentId/result" element={<StudentAssignmentResultPage />} />

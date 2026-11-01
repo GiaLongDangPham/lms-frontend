@@ -12,6 +12,7 @@ import {
   type Submission,
 } from '../../lib/assignments';
 import { AssignmentHeader, ErrorState, LoadingState } from '../../components/assignment/AssignmentUI';
+import { useConfirm } from '../../hooks/useConfirm';
 
 const allowedExtensions = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx', 'zip']);
 
@@ -24,6 +25,7 @@ export default function SubmissionFormPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -79,10 +81,20 @@ export default function SubmissionFormPage() {
       return;
     }
     const late = Date.now() > new Date(assignment.deadlineAt).getTime();
-    const confirmation = late
-      ? 'Đã quá hạn nộp. Bài sẽ được đánh dấu nộp trễ. Bạn vẫn muốn gửi?'
-      : 'Các tệp chỉ được tính là đã nộp khi hệ thống xác nhận thành công. Xác nhận nộp bài?';
-    if (!window.confirm(confirmation)) return;
+    const confirmed = await confirm(late
+      ? {
+          title: 'Nộp bài trễ hạn?',
+          message: 'Đã quá hạn nộp. Bài sẽ được đánh dấu nộp trễ. Bạn vẫn muốn gửi?',
+          confirmLabel: 'Nộp bài',
+          tone: 'primary',
+        }
+      : {
+          title: 'Xác nhận nộp bài?',
+          message: 'Các tệp chỉ được tính là đã nộp khi hệ thống xác nhận thành công.',
+          confirmLabel: 'Nộp bài',
+          tone: 'primary',
+        });
+    if (!confirmed) return;
 
     setSending(true);
     try {
@@ -108,6 +120,7 @@ export default function SubmissionFormPage() {
         title={submission ? 'Nộp lại bài tập' : 'Nộp bài tập'}
         subtitle={`${assignment.title} / Hạn nộp ${formatDateTime(assignment.deadlineAt)}`}
       />
+      {confirmDialog}
 
       {locked ? (
         <section className="assignment-notice assignment-notice--warning">

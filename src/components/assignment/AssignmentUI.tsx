@@ -26,6 +26,14 @@ export function ErrorState({
   );
 }
 
+export function SuccessNotice({ message }: { message: string }) {
+  return (
+    <section className="assignment-notice assignment-result" role="status">
+      <p>{message}</p>
+    </section>
+  );
+}
+
 export function EmptyState({
   title,
   children,
@@ -58,23 +66,6 @@ export function AssignmentHeader({
       </div>
       {action && <div className="assignment-heading-action">{action}</div>}
     </header>
-  );
-}
-
-export function AssignmentTabs({
-  selected,
-  className,
-}: {
-  selected: string;
-  className?: string;
-}) {
-  return (
-    <nav className="assignment-tabs" aria-label="Thông tin lớp học">
-      <span>Tổng quan</span>
-      <span>Tài liệu</span>
-      <span className={selected === 'assignments' ? 'assignment-tab--active' : undefined}>Bài tập</span>
-      {className && <span className="assignment-tabs-context">{className}</span>}
-    </nav>
   );
 }
 

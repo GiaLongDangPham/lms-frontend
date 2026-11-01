@@ -24,3 +24,10 @@ export async function logout(): Promise<void> {
 export async function getCurrentUser(): Promise<User> {
   return apiFetch<User>('/auth/me');
 }
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return apiFetch<void>('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}

@@ -6,6 +6,7 @@ export interface ClassSummary {
   courseCode: string;
   name: string;
   term: string;
+  description?: string | null;
 }
 
 export interface FileRecord {
@@ -58,7 +59,7 @@ export interface Submission {
   currentVersionNumber: number;
   versions: SubmissionVersion[];
   canSubmit: boolean;
-  lockedReason: 'GRADED' | null;
+  lockedReason: 'GRADED' | 'DEADLINE_PASSED' | null;
   createdAt: string;
   grade?: GradeSummary | null;
 }
@@ -92,7 +93,7 @@ export interface Page<T> {
 
 const listLimit = 100;
 
-function pageQuery(cursor?: string | null): string {
+export function pageQuery(cursor?: string | null): string {
   const params = new URLSearchParams({ limit: String(listLimit) });
   if (cursor) params.set('cursor', cursor);
   return `?${params.toString()}`;
@@ -111,7 +112,7 @@ function isSubmission(value: unknown): value is Submission {
     && typeof value.student.schoolCode === 'string'
     && typeof value.currentVersionNumber === 'number'
     && typeof value.canSubmit === 'boolean'
-    && (value.lockedReason === null || value.lockedReason === 'GRADED')
+    && (value.lockedReason === null || value.lockedReason === 'GRADED' || value.lockedReason === 'DEADLINE_PASSED')
     && typeof value.createdAt === 'string'
     && value.versions.every((version) => isRecord(version)
       && typeof version.versionNumber === 'number'
@@ -134,12 +135,15 @@ function parseSubmissionPage(value: unknown): Page<Submission> {
 }
 
 export function isSubmissionLocked(submission: Submission | null): boolean {
-  return submission !== null && (!submission.canSubmit || submission.lockedReason === 'GRADED');
+  return submission !== null && (!submission.canSubmit || submission.lockedReason !== null);
 }
 
 export function getLockMessage(submission: Submission): string {
   if (submission.lockedReason === 'GRADED') {
     return 'Bài đã được chấm. Bạn không thể nộp lại.';
+  }
+  if (submission.lockedReason === 'DEADLINE_PASSED') {
+    return 'Đã quá hạn nộp. Bạn chỉ có thể nộp lại khi giảng viên gia hạn.';
   }
   return 'Hiện tại bạn không thể nộp hoặc nộp lại bài này.';
 }
@@ -153,6 +157,28 @@ export function listAssignments(
   cursor?: string | null,
 ): Promise<Page<Assignment>> {
   return apiFetch(`/classes/${encodeURIComponent(classId)}/assignments${pageQuery(cursor)}`);
+}
+
+export async function listAllAssignments(classId: string): Promise<Assignment[]> {
+  const assignments: Assignment[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: Page<Assignment> = await listAssignments(classId, cursor);
+    assignments.push(...page.items);
+    cursor = page.page.nextCursor;
+  } while (cursor);
+  return assignments;
+}
+
+// Upcoming deadlines first (nearest first), then overdue ones (most recently overdue first).
+export function sortAssignmentsByDeadline<T extends { deadlineAt: string }>(
+  items: T[],
+  now: number = Date.now(),
+): T[] {
+  const deadline = (item: T) => new Date(item.deadlineAt).getTime();
+  const upcoming = items.filter((item) => deadline(item) >= now).sort((a, b) => deadline(a) - deadline(b));
+  const overdue = items.filter((item) => deadline(item) < now).sort((a, b) => deadline(b) - deadline(a));
+  return [...upcoming, ...overdue];
 }
 
 export function getAssignment(assignmentId: string): Promise<Assignment> {
@@ -191,7 +217,19 @@ export function updateAssignment(
   });
 }
 
+const uploadExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'json',
+  'xml', 'html', 'css', 'c', 'h', 'cpp', 'hpp', 'java', 'py', 'js', 'ts', 'sql', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'zip'];
+export const maxUploadBytes = 25 * 1024 * 1024;
+
+export const uploadAccept = uploadExtensions.map((extension) => `.${extension}`).join(',');
+
+export function findUnsupportedUpload(files: File[]): File | undefined {
+  return files.find((file) => !file.name.includes('.') || !uploadExtensions.includes(file.name.split('.').pop()?.toLowerCase() ?? ''));
+}
+
 export function uploadFile(file: File): Promise<FileRecord> {
+  if (file.size === 0 || file.size > maxUploadBytes) return Promise.reject(new Error(`${file.name}: tệp phải có dữ liệu và không quá 25 MiB.`));
+  if (findUnsupportedUpload([file])) return Promise.reject(new Error(`${file.name}: loại tệp không được hỗ trợ.`));
   const body = new FormData();
   body.set('file', file);
   return apiFetch('/files', { method: 'POST', body });
@@ -258,9 +296,19 @@ export function formatDateTime(value: string): string {
   }).format(new Date(value));
 }
 
+export function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+const sizeFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+
 export function formatFileSize(sizeBytes: number): string {
   if (sizeBytes < 1024 * 1024) return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
-  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${sizeFormat.format(sizeBytes / (1024 * 1024))} MB`;
 }
 
 export function toDateTimeInput(value: string): string {

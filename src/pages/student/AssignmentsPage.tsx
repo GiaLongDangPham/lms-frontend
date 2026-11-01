@@ -1,26 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  listAssignments,
-  listClasses,
+  listAllAssignments,
   formatDateTime,
+  sortAssignmentsByDeadline,
   type Assignment,
   type ClassSummary,
 } from '../../lib/assignments';
+import { listAllClasses } from '../../lib/classes';
 import {
   AssignmentHeader,
   AssignmentStatus,
-  AssignmentTabs,
   EmptyState,
   ErrorState,
   LoadingState,
 } from '../../components/assignment/AssignmentUI';
+import ClassNavTabs from '../../components/class/ClassNavTabs';
+
+interface StudentAssignment extends Assignment {
+  classLabel: string;
+}
 
 export default function StudentAssignmentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const classId = searchParams.get('classId') ?? '';
   const [classes, setClasses] = useState<ClassSummary[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -34,27 +39,24 @@ export default function StudentAssignmentsPage() {
       setLoading(true);
       setError(null);
       try {
-        const classPage = await listClasses();
+        const allClasses = await listAllClasses();
         if (cancelled) return;
-        setClasses(classPage.items);
-        const selectedClassId = classId || classPage.items[0]?.id;
-        if (!selectedClassId) {
-          setAssignments([]);
-          setLoading(false);
+        setClasses(allClasses);
+        if (classId && !allClasses.some((classItem) => classItem.id === classId)) {
+          setSearchParams({}, { replace: true });
           return;
         }
-        if (!classPage.items.some((classItem) => classItem.id === selectedClassId)) {
-          const fallbackClassId = classPage.items[0]?.id;
-          if (fallbackClassId) setSearchParams({ classId: fallbackClassId }, { replace: true });
-          setAssignments([]);
-          return;
-        }
-        if (selectedClassId !== classId) {
-          setSearchParams({ classId: selectedClassId }, { replace: true });
-          return;
-        }
-        const assignmentPage = await listAssignments(selectedClassId);
-        if (!cancelled) setAssignments(assignmentPage.items);
+        const targetClasses = classId
+          ? allClasses.filter((classItem) => classItem.id === classId)
+          : allClasses;
+        const perClass = await Promise.all(targetClasses.map(async (classItem) => {
+          const items = await listAllAssignments(classItem.id);
+          return items.map((assignment) => ({
+            ...assignment,
+            classLabel: `${classItem.name} · ${classItem.code}`,
+          }));
+        }));
+        if (!cancelled) setAssignments(sortAssignmentsByDeadline(perClass.flat()));
       } catch (loadError: unknown) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Không tải được danh sách bài tập.');
@@ -81,16 +83,19 @@ export default function StudentAssignmentsPage() {
     <section className="assignment-page">
       <AssignmentHeader
         title="Bài tập của tôi"
-        subtitle={selectedClass ? `${selectedClass.name} · ${selectedClass.code} · ${assignments.length} bài tập` : 'Bài tập trong các lớp của bạn'}
+        subtitle={selectedClass
+          ? `${selectedClass.name} · ${selectedClass.code} · ${assignments.length} bài tập`
+          : `Tất cả lớp · ${assignments.length} bài tập`}
         action={
-          classes.length > 1
+          classes.length > 0
             ? <label className="assignment-top-select">
                 <span className="visually-hidden">Chọn lớp học</span>
                 <select
                   className="form-input"
                   value={classId}
-                  onChange={(event) => setSearchParams({ classId: event.target.value })}
+                  onChange={(event) => setSearchParams(event.target.value ? { classId: event.target.value } : {})}
                 >
+                  <option value="">Tất cả lớp</option>
                   {classes.map((classItem) => (
                     <option key={classItem.id} value={classItem.id}>{classItem.name} · {classItem.code}</option>
                   ))}
@@ -100,7 +105,7 @@ export default function StudentAssignmentsPage() {
         }
       />
 
-      <AssignmentTabs selected="assignments" className={selectedClass?.code} />
+      {selectedClass && <ClassNavTabs role="STUDENT" classId={selectedClass.id} active="assignments" />}
 
       <div className="assignment-filters">
         <label className="assignment-filter">
@@ -127,7 +132,7 @@ export default function StudentAssignmentsPage() {
       {error && <ErrorState message={error} onRetry={() => setRefreshKey((value) => value + 1)} />}
       {loading && <LoadingState label="Đang tải bài tập…" />}
       {!loading && !error && assignments.length === 0 && (
-        <EmptyState title="Chưa có bài tập nào trong lớp này." />
+        <EmptyState title={selectedClass ? 'Chưa có bài tập nào trong lớp này.' : 'Bạn chưa có bài tập nào.'} />
       )}
       {!loading && !error && assignments.length > 0 && filteredAssignments.length === 0 && (
         <EmptyState title="Không tìm thấy bài tập phù hợp." />
@@ -138,6 +143,7 @@ export default function StudentAssignmentsPage() {
             <article className="assignment-card assignment-student-card" key={assignment.id}>
               <div className="assignment-card-main">
                 <h2>{assignment.title}</h2>
+                {!selectedClass && <p className="assignment-muted">{assignment.classLabel}</p>}
                 <p>Hạn nộp: {formatDateTime(assignment.deadlineAt)}</p>
                 <AssignmentStatus assignment={assignment} />
               </div>
