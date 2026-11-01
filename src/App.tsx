@@ -24,8 +24,11 @@ import TeacherAssignmentFormPage from './pages/teacher/AssignmentFormPage';
 import TeacherAssignmentSubmissionsPage from './pages/teacher/AssignmentSubmissionsPage';
 import TeacherMaterialsPage from './pages/teacher/MaterialsPage';
 import TeacherMaterialFormPage from './pages/teacher/MaterialFormPage';
+import GradeSubmissionPage from './pages/teacher/GradeSubmissionPage';
+import PublishAssignmentGradesPage from './pages/teacher/PublishAssignmentGradesPage';
 import StudentAssignmentsPage from './pages/student/AssignmentsPage';
 import StudentAssignmentDetailPage from './pages/student/AssignmentDetailPage';
+import StudentAssignmentResultPage from './pages/student/AssignmentResultPage';
 import StudentSubmissionFormPage from './pages/student/SubmissionFormPage';
 import StudentSubmissionHistoryPage from './pages/student/SubmissionHistoryPage';
 import StudentSubmissionVersionPage from './pages/student/SubmissionVersionPage';
@@ -104,6 +107,8 @@ export default function App() {
             <Route path="assignments/new" element={<TeacherAssignmentFormPage />} />
             <Route path="assignments/:assignmentId/edit" element={<TeacherAssignmentFormPage />} />
             <Route path="assignments/:assignmentId/submissions" element={<TeacherAssignmentSubmissionsPage />} />
+            <Route path="assignments/:assignmentId/submissions/:submissionId/grade" element={<GradeSubmissionPage />} />
+            <Route path="assignments/:assignmentId/publish" element={<PublishAssignmentGradesPage />} />
           </Route>
 
           {/* Student routes */}
@@ -120,6 +125,7 @@ export default function App() {
             <Route path="materials" element={<StudentMaterialsPage />} />
             <Route path="assignments" element={<StudentAssignmentsPage />} />
             <Route path="assignments/:assignmentId" element={<StudentAssignmentDetailPage />} />
+            <Route path="assignments/:assignmentId/result" element={<StudentAssignmentResultPage />} />
             <Route path="assignments/:assignmentId/submit" element={<StudentSubmissionFormPage />} />
             <Route path="assignments/:assignmentId/history" element={<StudentSubmissionHistoryPage />} />
             <Route path="assignments/:assignmentId/history/:versionNumber" element={<StudentSubmissionVersionPage />} />
