@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GradebookRow } from './grades';
 import {
   getMyPublishedGradeHistory,
+  getAssignmentGradebook,
   getUnGradedRows,
+  isValidGradeScore,
   publishAssignmentGrades,
+  saveAutomaticZeroCorrection,
   saveGrade,
 } from './grades';
 
@@ -19,7 +22,7 @@ const student = {
 describe('grade workflows', () => {
   it('only treats submitted work without a grade as a publication blocker', () => {
     const rows: GradebookRow[] = [
-      { student, submission: null, grade: null, autoZeroPublished: false },
+      { student, submission: null, grade: null },
       {
         student: { ...student, id: 'student-2' },
         submission: {
@@ -33,7 +36,6 @@ describe('grade workflows', () => {
           createdAt: '2026-10-20T09:00:00Z',
         },
         grade: null,
-        autoZeroPublished: false,
       },
     ];
 
@@ -86,5 +88,86 @@ describe('grade workflows', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
 
     await expect(getMyPublishedGradeHistory('assignment-1')).resolves.toBeNull();
+  });
+
+  it.each([
+    ['0', true],
+    ['8.1', true],
+    ['8.12', true],
+    ['8.125', false],
+    ['10.01', false],
+    ['-0.1', false],
+    ['1e1', false],
+    ['', false],
+  ])('validates grade score %s', (value, expected) => {
+    expect(isValidGradeScore(value, 10)).toBe(expected);
+  });
+
+  it('updates an automatic zero through the assignment/student correction endpoint', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      assignmentId: 'assignment-1',
+      student,
+      submissionId: null,
+      score: 0,
+      feedback: 'Đã trao đổi với sinh viên',
+      status: 'PUBLISHED',
+      source: 'MANUAL',
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await saveAutomaticZeroCorrection('assignment-1', 'student-1', {
+      score: 0,
+      feedback: 'Đã trao đổi với sinh viên',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:4010/api/assignments/assignment-1/grades/student-1',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ score: 0, feedback: 'Đã trao đổi với sinh viên' }),
+      }),
+    );
+  });
+
+  it('does not request per-student grade histories while loading the gradebook', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 'assignment-1',
+        classId: 'class-1',
+        title: 'Bài kiểm tra',
+        deadlineAt: '2026-11-20T10:00:00Z',
+        maxScore: 10,
+        files: [],
+        createdAt: '2026-11-01T10:00:00Z',
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        items: [],
+        page: { nextCursor: null },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        items: [
+          { id: 'enrollment-1', classId: 'class-1', student, isActive: true, createdAt: '2026-11-01T10:00:00Z' },
+          {
+            id: 'enrollment-2',
+            classId: 'class-1',
+            student: { ...student, id: 'student-2', schoolCode: 'SV002' },
+            isActive: true,
+            createdAt: '2026-11-01T10:00:00Z',
+          },
+        ],
+        page: { nextCursor: null },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getAssignmentGradebook('assignment-1')).resolves.toMatchObject({
+      rows: [{ submission: null }, { submission: null }],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('/grades/'),
+      expect.anything(),
+    );
   });
 });

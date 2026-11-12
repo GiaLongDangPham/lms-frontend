@@ -1,8 +1,7 @@
 # LMS Frontend · Nhóm 2
 
-React + TypeScript + Vite. Khung S1 có trang kiểm tra kết nối thật tới Express và PostgreSQL.
-Khang tiếp tục F0 (routing, layout theo role, API mock) từ 13/10 và áp UI kit của Cát.
-Trang kiểm tra môi trường hiện tại là màn hình dành cho phát triển, chưa phải giao diện LMS.
+React + TypeScript + Vite. Ứng dụng LMS có đăng nhập theo role và các luồng bài tập,
+nộp bài, chấm/công bố điểm, thông báo và thảo luận bài tập.
 
 ## Chạy local
 
@@ -17,12 +16,24 @@ npm run dev
 ```
 
 Chỉ copy `.env` lần đầu; sửa file hiện có nếu đã cấu hình riêng.
-Mở `http://localhost:5173`. Cổng cố định; nếu bị chiếm, giải phóng cổng hoặc đổi đồng thời
-Vite/CORS backend. API gọi trực tiếp `http://localhost:3000/api`, nên phép thử xác minh
-cả CORS giữa hai origin, không dùng proxy để che lỗi cấu hình.
+Mở `http://localhost:5173`. Mặc định `.env.example` gọi mock OpenAPI tại
+`http://localhost:4010/api`; mock chỉ trả dữ liệu ví dụ và không lưu thay đổi.
+Để chạy với backend thật local, đặt `VITE_API_BASE_URL=http://localhost:3000/api`
+và cấu hình CORS cho `http://localhost:5173`.
 
-Trang hiển thị trạng thái FE, BE, DB; có loading, lỗi và nút thử lại. Khi DB dừng,
-backend vẫn có thể hiện kết nối thành công, PostgreSQL hiện chưa kết nối.
+## Luồng nghiệp vụ hiện có
+
+- Sinh viên: bài tập, nộp bài và lịch sử phiên bản, kết quả đã công bố, thông báo và
+  thảo luận cấp bài tập.
+- Giảng viên: quản lý bài tập, bảng điểm, chấm/sửa điểm, công bố điểm toàn bài, điều
+  chỉnh kết quả 0 tự động và thảo luận cấp bài tập.
+- Thông báo và bình luận dùng các endpoint `/notifications` và
+  `/assignments/{assignmentId}/comments` trong API contract. Mock OpenAPI chỉ trả
+  example tĩnh, không lưu trạng thái đã đọc, bình luận, điểm hoặc thao tác công bố.
+
+Các luồng cần API thật để kiểm tra ghi dữ liệu end-to-end. Frontend staging cần
+`VITE_API_BASE_URL` trỏ tới API staging và backend phải cho phép origin staging trong
+CORS; biến này được đóng vào bundle lúc build.
 
 ## Kiểm tra và build
 
@@ -38,29 +49,23 @@ thêm `http://localhost:4173` vào `CORS_ORIGINS` và khởi động lại backe
 GitHub Actions thực hiện `npm ci` + `npm run check` khi mở PR hoặc push `main`.
 Workflow hiện được chuẩn bị local; kết quả trên GitHub chỉ có sau khi push/PR.
 
-## Cấu trúc và bàn giao F0
+## Cấu trúc
 
 ```text
 src/
-  main.tsx            # React root
-  App.tsx             # Trang kiểm tra môi trường S1
-  styles.css          # CSS tối thiểu, thay bằng UI kit trong F0/U1
-  lib/api.ts          # Lời gọi API hạ tầng + timeout + kiểm tra response
-  lib/api.test.ts
+  App.tsx
+  components/assignment/
+  contexts/
+  layouts/
+  lib/                # API clients and feature types
+  pages/
+  styles.css
 ```
 
-Khang bổ sung routing/layout và API client nghiệp vụ theo D2. Long/Nam làm F2/F4 theo
-component/UI kit dùng chung. Không tạo role giả hoặc coi việc ẩn menu là phân quyền.
-Nam cung cấp mock sinh từ OpenAPI; mock chỉ dùng khi phát triển F0/F1 trước API thật.
+Giữ route được bảo vệ theo role; việc ẩn menu không thay thế phân quyền phía API.
+Các màn hình nghiệp vụ dùng API contract backend và component/UI kit hiện có.
 
 `VITE_API_BASE_URL` là cấu hình công khai, được đóng vào bundle lúc build. Sửa URL
 staging phải build lại. Không đặt DB URL, password hay token bí mật trong biến `VITE_*`.
 
-DoD F0 tại CP1: build qua CI, staging chạy app shell và gọi được mock D2. Các module FE
-nghiệp vụ cần chạy API thật trên staging khi đóng issue. Cần ghi rõ ngoại lệ F0 với Kha.
-
-Branch: `F0-mo-ta-ngan` hoặc mã hoạt động tương ứng; commit `[Mã] ...`; PR `Closes #<issue>`.
-Long review PR của Khang; Khang review F2 của Long và F4 của Nam.
-
-Tài liệu điều phối trong repo backend: `docs/technical-decisions.md`,
-`docs/S1-checklist.md`, `docs/kickoff-questions.md`.
+Branch theo mã hoạt động, commit `[Mã] ...`; PR ghi `Closes #<issue>` khi đã có issue.

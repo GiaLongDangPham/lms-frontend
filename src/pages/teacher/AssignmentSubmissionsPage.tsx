@@ -15,6 +15,7 @@ import {
   ErrorState,
   LoadingState,
 } from '../../components/assignment/AssignmentUI';
+import AssignmentComments from '../../components/assignment/AssignmentComments';
 
 type RowStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'LATE' | 'GRADED';
 
@@ -92,7 +93,7 @@ export default function AssignmentSubmissionsPage() {
   const submittedCount = rows.filter((row) => row.submission !== null).length;
   const lateCount = rows.filter((row) => rowStatus(row) === 'LATE').length;
   const gradedCount = rows.filter((row) => row.grade !== null).length;
-  const publishedCount = rows.filter((row) => row.grade?.status === 'PUBLISHED' || row.autoZeroPublished).length;
+  const publishedCount = rows.filter((row) => row.grade?.status === 'PUBLISHED').length;
 
   return (
     <section className="assignment-page">
@@ -106,7 +107,7 @@ export default function AssignmentSubmissionsPage() {
         <article className="assignment-stat-card"><strong>{submittedCount}/{rows.length}</strong><span>Đã nộp</span></article>
         <article className="assignment-stat-card"><strong>{lateCount}</strong><span>Nộp trễ</span></article>
         <article className="assignment-stat-card"><strong>{gradedCount}</strong><span>Đã chấm</span></article>
-        <article className="assignment-stat-card"><strong>{publishedCount}</strong><span>Đã công bố</span></article>
+        <article className="assignment-stat-card"><strong>{publishedCount}</strong><span>Bài nộp đã công bố</span></article>
       </div>
 
       <div className="assignment-filters">
@@ -154,9 +155,7 @@ export default function AssignmentSubmissionsPage() {
                 const version = currentVersion(row);
                 const firstFile = version?.files[0];
                 const status = rowStatus(row);
-                const gradeStatus = row.grade?.status === 'PUBLISHED' || row.autoZeroPublished
-                  ? 'PUBLISHED'
-                  : row.grade?.status;
+                const gradeStatus = row.grade?.status;
                 return (
                   <tr key={row.student.id}>
                     <td>{row.student.fullName} · {row.student.schoolCode}</td>
@@ -167,7 +166,7 @@ export default function AssignmentSubmissionsPage() {
                       </span>
                     </td>
                     <td>
-                      {row.grade?.score ?? (row.autoZeroPublished ? 0 : '—')}
+                      {row.grade?.score ?? '—'}
                     </td>
                     <td>
                       {gradeStatus
@@ -196,6 +195,14 @@ export default function AssignmentSubmissionsPage() {
                           )}
                         </>
                       )}
+                      {!row.submission && (
+                        <Link
+                          className="btn btn--secondary"
+                          to={`/teacher/assignments/${assignment.id}/grades/${row.student.id}/edit`}
+                        >
+                          Kiểm tra điểm 0
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 );
@@ -209,6 +216,7 @@ export default function AssignmentSubmissionsPage() {
           Xem trước & công bố điểm
         </Link>
       </div>
+      <AssignmentComments assignmentId={assignment.id} />
     </section>
   );
 }

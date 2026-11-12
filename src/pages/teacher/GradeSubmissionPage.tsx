@@ -13,6 +13,7 @@ import {
   getGradeForTeacher,
   getSubmissionForGrading,
   getTeacherGradeHistory,
+  isValidGradeScore,
   saveGrade,
   type Grade,
   type GradeHistory,
@@ -92,9 +93,8 @@ export default function GradeSubmissionPage() {
     event.preventDefault();
     if (!assignment || !submission) return;
 
-    const parsedScore = Number(score);
-    if (!score.trim() || !Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > assignment.maxScore) {
-      setError(`Điểm phải nằm trong khoảng 0–${assignment.maxScore}.`);
+    if (!isValidGradeScore(score, assignment.maxScore)) {
+      setError(`Điểm phải nằm trong khoảng 0–${assignment.maxScore} và có tối đa 2 chữ số thập phân.`);
       setNotice(null);
       return;
     }
@@ -105,7 +105,7 @@ export default function GradeSubmissionPage() {
     try {
       const saved = await saveGrade(submission.id, {
         gradedVersionNumber: submission.currentVersionNumber,
-        score: parsedScore,
+        score: Number(score),
         feedback: feedback.trim() || null,
       });
       setGrade(saved);
@@ -179,7 +179,7 @@ export default function GradeSubmissionPage() {
             type="number"
             min="0"
             max={assignment.maxScore}
-            step="any"
+            step="0.01"
             required
             value={score}
             onChange={(event) => setScore(event.target.value)}
