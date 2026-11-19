@@ -17,11 +17,11 @@ import {
 import {
   AssignmentFiles,
   AssignmentHeader,
-  AssignmentTabs,
   ErrorState,
   LoadingState,
   SubmissionStatus,
 } from '../../components/assignment/AssignmentUI';
+import ClassNavTabs from '../../components/class/ClassNavTabs';
 import AssignmentComments from '../../components/assignment/AssignmentComments';
 
 export default function AssignmentDetailPage() {
@@ -86,7 +86,7 @@ export default function AssignmentDetailPage() {
   return (
     <section className="assignment-page">
       <AssignmentHeader title={assignment.title} subtitle="Bài tập của tôi" />
-      <AssignmentTabs selected="assignments" />
+      <ClassNavTabs role="STUDENT" classId={assignment.classId} active="assignments" />
 
       <div className="assignment-badges">
         {submission && currentVersion

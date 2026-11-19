@@ -3,17 +3,17 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AssignmentHeader, ErrorState, LoadingState } from '../../components/assignment/AssignmentUI';
 import {
   createAssignment,
+  findUnsupportedUpload,
   formatFileSize,
   getAssignment,
   listClasses,
   toDateTimeInput,
   updateAssignment,
+  uploadAccept,
   uploadFile,
   type ClassSummary,
   type FileRecord,
 } from '../../lib/assignments';
-
-const allowedExtensions = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx', 'zip']);
 
 export default function AssignmentFormPage() {
   const { assignmentId } = useParams();
@@ -52,11 +52,10 @@ export default function AssignmentFormPage() {
           setDeadlineAt(toDateTimeInput(loadedAssignment.deadlineAt));
           setMaxScore(String(loadedAssignment.maxScore));
           setExistingFiles(loadedAssignment.files);
+        } else if (classPage.items.some((classItem) => classItem.id === requestedClassId)) {
+          setClassId(requestedClassId);
         } else {
-          const selectedClassExists = classPage.items.some((classItem) => classItem.id === requestedClassId);
-          if ((!selectedClassExists || !requestedClassId) && classPage.items[0]) {
-            setClassId(classPage.items[0].id);
-          }
+          setClassId(classPage.items.length === 1 && classPage.items[0] ? classPage.items[0].id : '');
         }
       } catch (loadError: unknown) {
         if (!cancelled) {
@@ -75,10 +74,7 @@ export default function AssignmentFormPage() {
 
   function handleFileSelection(selectedFiles: FileList | null) {
     if (!selectedFiles) return;
-    const unsupported = Array.from(selectedFiles).find((file) => {
-      const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-      return !allowedExtensions.has(extension);
-    });
+    const unsupported = findUnsupportedUpload(Array.from(selectedFiles));
     if (unsupported) {
       setError(`${unsupported.name}: chỉ hỗ trợ PDF, Word, PowerPoint hoặc file nén.`);
       return;
@@ -136,7 +132,14 @@ export default function AssignmentFormPage() {
         {classes.length > 1 && (
           <label className="form-field">
             <span className="form-label">Lớp học</span>
-            <select className="form-input" value={classId} onChange={(event) => setClassId(event.target.value)} required>
+            <select
+              className="form-input"
+              value={classId}
+              onChange={(event) => setClassId(event.target.value)}
+              disabled={editing}
+              required
+            >
+              {!editing && <option value="">— Chọn lớp —</option>}
               {classes.map((classItem) => (
                 <option key={classItem.id} value={classItem.id}>{classItem.name} · {classItem.code}</option>
               ))}
@@ -199,7 +202,7 @@ export default function AssignmentFormPage() {
             Thêm tệp đề bài
             <input
               type="file"
-              accept=".pdf,.doc,.docx,.ppt,.pptx,.zip"
+              accept={uploadAccept}
               multiple
               disabled={saving}
               onChange={(event) => handleFileSelection(event.currentTarget.files)}
@@ -241,7 +244,10 @@ export default function AssignmentFormPage() {
           <button type="submit" className="btn btn--primary" disabled={saving}>
             {saving ? 'Đang lưu…' : editing ? 'Lưu thay đổi' : 'Đăng bài'}
           </button>
-          <Link className="btn btn--secondary" to={`/teacher/assignments?classId=${encodeURIComponent(classId)}`}>
+          <Link
+            className="btn btn--secondary"
+            to={classId ? `/teacher/assignments?classId=${encodeURIComponent(classId)}` : '/teacher/assignments'}
+          >
             Hủy
           </Link>
         </div>

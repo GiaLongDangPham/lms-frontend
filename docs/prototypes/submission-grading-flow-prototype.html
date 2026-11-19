@@ -1,0 +1,600 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Prototype luồng nộp–chấm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: control bar on top · kịch bản 6 cảnh bên trái điều khiển · cửa sổ ứng dụng bên phải luôn ghi mã màn hình (G1–G4, S1–S4) */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --sunk:#E9EDF1; --ink:#17212C; --muted:#56616E; --line:#D5DCE3;
+  --accent:#1D5C89; --accent-ink:#FFFFFF; --accent-soft:#E2ECF5;
+  --ok:#1C6E45; --ok-bg:#E0F2E8; --late:#8A5200; --late-bg:#FCEFD8; --draft:#54479A; --draft-bg:#EBE8F8;
+  --none:#56616E; --none-bg:#ECEFF2; --err:#A32A2A; --err-bg:#FBE7E6;
+  --f-ui:"Be Vietnam Pro","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10151B; --surface:#18202A; --sunk:#0D1217; --ink:#E5EAF0; --muted:#9BA7B4; --line:#2B3644;
+  --accent:#73AAD8; --accent-ink:#0A1622; --accent-soft:#1A2C3C;
+  --ok:#74D3A0; --ok-bg:#123022; --late:#F2B85E; --late-bg:#3A2A0F; --draft:#B7ABF2; --draft-bg:#272148;
+  --none:#9BA7B4; --none-bg:#222C37; --err:#F49A94; --err-bg:#3A1A1A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10151B; --surface:#18202A; --sunk:#0D1217; --ink:#E5EAF0; --muted:#9BA7B4; --line:#2B3644;
+  --accent:#73AAD8; --accent-ink:#0A1622; --accent-soft:#1A2C3C;
+  --ok:#74D3A0; --ok-bg:#123022; --late:#F2B85E; --late-bg:#3A2A0F; --draft:#B7ABF2; --draft-bg:#272148;
+  --none:#9BA7B4; --none-bg:#222C37; --err:#F49A94; --err-bg:#3A1A1A; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:20px;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.25}
+p{margin:0}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+/* top bar */
+.bar{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end;justify-content:space-between}
+.brand{display:flex;gap:12px;align-items:center;min-width:0}
+.brand .tag{font-family:var(--f-mono);font-weight:600;font-size:13px;padding:6px 9px;border-radius:8px;background:var(--ink);color:var(--bg)}
+.brand h1{font-size:22px;font-weight:700}
+.brand p{font-size:13px;color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end}
+.ctl{display:flex;flex-direction:column;gap:6px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;gap:4px;padding:4px;background:var(--sunk);border-radius:12px}
+.seg button{border:0;background:transparent;padding:8px 12px;border-radius:9px;cursor:pointer;font-size:14px;min-height:40px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+.seg button small{font-size:12px;color:var(--muted);font-weight:400;margin-left:4px}
+.clockrow{display:flex;gap:8px;flex-wrap:wrap}
+input[type="datetime-local"]{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:8px 10px;min-height:40px;font-family:var(--f-mono);font-size:14px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:500;font-size:14px;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--accent);padding-inline:6px}
+.btn[disabled]{opacity:.45;cursor:not-allowed;filter:none}
+.btn.sm{min-height:34px;padding:5px 10px;font-size:13px}
+
+/* layout */
+.grid{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+/* script panel */
+.script{background:var(--surface);border:1px solid var(--line);border-radius:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:900px){.script{position:static}}
+.script summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.script summary::-webkit-details-marker{display:none}
+.script summary h2{font-size:16px;font-weight:700}
+.progress{font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.steps{list-style:none;margin:0;padding:8px;display:flex;flex-direction:column;gap:4px}
+.step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;padding:10px;border-radius:10px}
+.step.current{background:var(--accent-soft)}
+.dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-mono);font-size:13px;font-weight:600;border:1.5px solid var(--line);color:var(--muted);background:var(--surface)}
+.step.done .dot{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.step.current .dot{border-color:var(--accent);color:var(--accent)}
+.step h3{font-size:14.5px;font-weight:600}
+.step .meta{font-size:12.5px;color:var(--muted);font-family:var(--f-mono)}
+.step .how,.step .chk{font-size:13.5px;margin-top:4px}
+.step .chk b{font-weight:600}
+.step .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.step:not(.current) .how,.step:not(.current) .chk,.step:not(.current) .acts{display:none}
+.step:not(.current){cursor:pointer}
+.step:not(.current):hover{background:var(--sunk)}
+.legend{padding:12px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+
+/* app window */
+.app{background:var(--surface);border:1px solid var(--line);border-radius:14px;min-width:0;overflow:hidden}
+.chrome{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--sunk)}
+.code{font-family:var(--f-mono);font-weight:600;font-size:13px;padding:3px 8px;border-radius:6px;background:var(--ink);color:var(--surface)}
+.chrome .scr{font-weight:600;font-size:14px}
+.chrome .who{margin-left:auto;font-size:13px;color:var(--muted)}
+.screen{padding:22px;display:flex;flex-direction:column;gap:18px;min-width:0}
+@media (max-width:520px){.screen{padding:16px}}
+.head{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-start}
+.head h2{font-size:21px;font-weight:700}
+.head .sub{font-size:14px;color:var(--muted);margin-top:4px}
+.back{font-size:14px;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;align-self:flex-start}
+.back:hover{text-decoration:underline}
+
+.flash{padding:10px 14px;border-radius:10px;font-size:14px;background:var(--ok-bg);color:var(--ok);font-weight:500}
+.flash.err{background:var(--err-bg);color:var(--err)}
+.callout{padding:12px 14px;border-radius:10px;font-size:14px;background:var(--late-bg);color:var(--ink);border:1px solid color-mix(in srgb,var(--late) 35%,transparent)}
+.callout b{color:var(--late)}
+.note{padding:12px 14px;border-radius:10px;font-size:13.5px;background:var(--sunk);color:var(--muted)}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap;line-height:1.6}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-late{background:var(--late-bg);color:var(--late)}
+.b-draft{background:var(--draft-bg);color:var(--draft)}
+.b-none{background:var(--none-bg);color:var(--none)}
+
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r)}
+.row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;padding:14px 16px}
+.row + .row{border-top:1px solid var(--line)}
+.row .t{font-weight:600}
+.row .m{font-size:13.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:2px}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+.stat{padding:8px 12px;border-radius:10px;background:var(--sunk);font-size:13.5px}
+.stat b{font-family:var(--f-mono);font-weight:600;margin-right:4px}
+
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--sunk)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.flag{display:block;font-size:12px;color:var(--late);margin-top:2px}
+
+.block{border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.block > header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.block > header h3{font-size:16px;font-weight:700}
+.scode{font-family:var(--f-mono);font-size:12px;font-weight:600;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted)}
+.cols{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:760px){.cols{grid-template-columns:minmax(0,1fr)}}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13.5px;font-weight:600}
+.field input,.field textarea{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 11px;min-height:42px;width:100%}
+.field textarea{min-height:84px;resize:vertical}
+.field .hint{font-size:12.5px;color:var(--muted)}
+.fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:560px){.fgrid{grid-template-columns:minmax(0,1fr)}}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.err{color:var(--err);font-size:13.5px;font-weight:500}
+
+.file{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-family:var(--f-mono);font-size:13px;background:var(--sunk);max-width:100%;overflow-wrap:anywhere}
+.file svg{flex:none}
+.picks{display:flex;flex-wrap:wrap;gap:8px}
+.pick{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--line);border-radius:9px;cursor:pointer;font-family:var(--f-mono);font-size:13px;min-height:40px}
+.pick input{margin:0;accent-color:var(--accent)}
+.pick:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.other{font-size:13px}
+.other input{font-size:13px;max-width:100%}
+
+.confirm{border:1.5px solid var(--accent);border-radius:var(--r);padding:14px 16px;background:var(--accent-soft);display:flex;flex-direction:column;gap:10px}
+.confirm p{font-size:14px}
+
+.score{display:flex;align-items:baseline;gap:8px}
+.score .big{font-family:var(--f-mono);font-size:40px;font-weight:600;line-height:1}
+.score .of{font-family:var(--f-mono);color:var(--muted)}
+.quote{border-left:3px solid var(--line);padding-left:12px;font-size:14px}
+dl.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;margin:0;font-size:14px}
+dl.kv dt{color:var(--muted)}
+dl.kv dd{margin:0}
+@media (prefers-reduced-motion:no-preference){.flash,.confirm{animation:pop .18s ease-out}}
+@keyframes pop{from{transform:translateY(-3px);opacity:.6}to{transform:none;opacity:1}}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <div class="brand">
+      <span class="tag">R1</span>
+      <div>
+        <h1>Prototype luồng nộp–chấm</h1>
+        <p>LMS Nhóm 2 · bản bấm thử với dữ liệu mẫu, không phải giao diện cuối</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="ctl">
+        <span class="lbl" id="role-lbl">Đang dùng với vai</span>
+        <div class="seg" role="group" aria-labelledby="role-lbl" id="roles"></div>
+      </div>
+      <div class="ctl">
+        <label class="lbl" for="clock">Giờ hệ thống (giả lập)</label>
+        <div class="clockrow">
+          <input type="datetime-local" id="clock" step="60">
+          <button class="btn" id="reset" type="button">Làm lại từ đầu</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <details class="script" id="script-box" open>
+      <summary><h2>Kịch bản 6 cảnh</h2><span class="progress" id="progress"></span></summary>
+      <ol class="steps" id="steps"></ol>
+      <div class="legend">
+        <span>Bấm vào một cảnh để xem hướng dẫn. “Chuyển vai &amp; giờ” chỉ đổi vai và đồng hồ, thao tác bạn tự bấm.</span>
+        <span>Mã màn hình khớp với tài liệu kịch bản: G1–G4 của giảng viên, S1–S4 của sinh viên.</span>
+      </div>
+    </details>
+
+    <main class="app">
+      <div class="chrome">
+        <span class="code" id="scode">G1</span>
+        <span class="scr" id="sname"></span>
+        <span class="who" id="who"></span>
+      </div>
+      <div class="screen" id="screen" aria-live="polite"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+const KEY = 'r1-proto-v1';
+const CLASS = 'Cơ sở dữ liệu · L01';
+const GV = { id: 'gv', name: 'Thầy Trần Minh', short: 'Thầy Minh', role: 'Giảng viên' };
+const SV = [
+  { id: 'an', name: 'Nguyễn An', short: 'An', files: ['an_erd_v1.pdf', 'an_erd_v2.pdf'] },
+  { id: 'binh', name: 'Lê Bình', short: 'Bình', files: ['binh_erd.pdf'] },
+  { id: 'chi', name: 'Phạm Chi', short: 'Chi', files: ['chi_erd.pdf'] }
+];
+const SAMPLE_GRADE = {
+  an: { score: 8.5, comment: 'ERD đủ thực thể và quan hệ. Thiếu ràng buộc khoá ngoại giữa Mượn và Sách.' },
+  binh: { score: 7, comment: 'Cấu trúc đúng nhưng thiếu thuộc tính đa trị của Tác giả. Bài nộp trễ.' },
+  chi: { score: '', comment: '' }
+};
+const SCREEN_NAME = { G1: 'Bài tập của lớp', G2: 'Tạo bài tập', G3: 'Bài nộp', G4: 'Chấm bài', S1: 'Bài tập của tôi', S2: 'Chi tiết bài' };
+
+/* ---------- time helpers (chuỗi YYYY-MM-DDTHH:MM, không phụ thuộc múi giờ máy) ---------- */
+const mins = t => { const [d, h] = t.split('T'); const [y, m, dd] = d.split('-').map(Number); const [hh, mi] = h.split(':').map(Number); return Date.UTC(y, m - 1, dd, hh, mi) / 60000; };
+const fromMins = n => new Date(n * 60000).toISOString().slice(0, 16);
+const fmt = t => `${t.slice(8, 10)}/${t.slice(5, 7)}, ${t.slice(11, 16)}`;
+const dur = n => { n = Math.abs(n); const d = Math.floor(n / 1440), h = Math.floor((n % 1440) / 60), m = n % 60; const p = []; if (d) p.push(`${d} ngày`); if (h) p.push(`${h} giờ`); if (m && !d) p.push(`${m} phút`); return p.join(' ') || 'dưới 1 phút'; };
+const num = x => Number(x).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const svName = id => SV.find(s => s.id === id)?.name ?? id;
+
+/* ---------- state ---------- */
+const initial = () => ({ now: '2026-10-13T09:00', role: 'gv', view: { s: 'G1' }, asg: [], subs: {}, grades: {}, ui: {}, focusStep: 1 });
+let S;
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+const load = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); return v && v.asg ? v : null; } catch (e) { return null; } };
+
+const getA = (s, id) => s.asg.find(a => a.id === id);
+const subsOf = (s, aid, sv) => (s.subs[aid] && s.subs[aid][sv]) || [];
+const latest = (s, aid, sv) => { const l = subsOf(s, aid, sv); return l[l.length - 1] || null; };
+const gradeOf = (s, aid, sv) => (s.grades[aid] && s.grades[aid][sv]) || null;
+/* Phía sinh viên CHỈ đọc qua hàm này: điểm nháp không bao giờ tới tay SV (Client Log #5, QT6) */
+const visibleGrade = (s, aid, sv) => { const g = gradeOf(s, aid, sv); return g && g.status === 'published' ? g : null; };
+const subState = (s, a, sv) => { const l = latest(s, a.id, sv); if (!l) return { k: 'none' }; const late = mins(l.at) - mins(a.due); return late > 0 ? { k: 'late', by: late, at: l.at } : { k: 'ok', at: l.at }; };
+
+/* ---------- mutators (dùng chung cho thao tác tay và tua nhanh) ---------- */
+function addAsg(s, f) {
+  const id = s.asg.length ? Math.max(...s.asg.map(a => a.id)) + 1 : 1;
+  s.asg.push({ id, title: f.title, desc: f.desc, due: f.due, max: Number(f.max) || 10, file: f.file, createdAt: s.now });
+  s.subs[id] = {}; s.grades[id] = {};
+  return id;
+}
+function addSub(s, aid, sv, file) {
+  const list = (s.subs[aid][sv] = s.subs[aid][sv] || []);
+  list.push({ n: list.length + 1, file, at: s.now });
+}
+function saveGrade(s, aid, sv, score, comment) {
+  const g = gradeOf(s, aid, sv); const sub = latest(s, aid, sv);
+  if (g && g.status === 'published') { g.history.push({ score: g.score, at: g.updatedAt || g.publishedAt }); Object.assign(g, { score, comment, updatedAt: s.now, subN: sub ? sub.n : g.subN }); }
+  else s.grades[aid][sv] = { score, comment, status: 'draft', savedAt: s.now, subN: sub ? sub.n : null, history: [] };
+}
+function publish(s, aid) {
+  let n = 0;
+  for (const sv of Object.keys(s.grades[aid] || {})) { const g = s.grades[aid][sv]; if (g.status === 'draft') { g.status = 'published'; g.publishedAt = s.now; n++; } }
+  return n;
+}
+const defaultAsg = s => s.asg.length === 0
+  ? { title: 'BT1 · Thiết kế ERD', desc: 'Thiết kế ERD cho hệ thống quản lý thư viện: thực thể, thuộc tính, khoá và quan hệ. Nộp một file PDF.', due: '2026-10-20T23:59', max: 10, file: 'de_bt1.pdf' }
+  : { title: `BT${s.asg.length + 1} · `, desc: '', due: fromMins(mins(s.now) + 7 * 1440).slice(0, 11) + '23:59', max: 10, file: `de_bt${s.asg.length + 1}.pdf` };
+
+/* ---------- kịch bản ---------- */
+const STEPS = [
+  { n: 1, title: 'GV giao bài BT1', role: 'gv', at: '2026-10-13T09:00', go: 'G1',
+    how: 'Ở G1 bấm “Tạo bài tập”, giữ dữ liệu mẫu, bấm “Đăng bài”.', chk: 'BT1 hiện ở G1 với 0/3 đã nộp; đổi sang vai An thấy BT1 ở S1.',
+    done: s => s.asg.length > 0,
+    auto: s => { s.now = '2026-10-13T09:00'; addAsg(s, defaultAsg(s)); } },
+  { n: 2, title: 'An nộp đúng hạn', role: 'an', at: '2026-10-18T21:15', go: 'S2',
+    how: 'Mở BT1, chọn an_erd_v1.pdf, bấm “Nộp bài”.', chk: 'Trạng thái “Đúng hạn” kèm thời điểm nộp (#6).',
+    done: s => s.asg[0] && subsOf(s, s.asg[0].id, 'an').length >= 1,
+    auto: s => { s.now = '2026-10-18T21:15'; addSub(s, 1, 'an', 'an_erd_v1.pdf'); } },
+  { n: 3, title: 'An nộp lại', role: 'an', at: '2026-10-19T08:30', go: 'S2',
+    how: 'Chọn an_erd_v2.pdf, bấm “Nộp lại”, rồi xác nhận.', chk: 'Lịch sử nộp có 2 dòng; lần mới ghi “Dùng để chấm”, lần cũ vẫn còn (#4, #6).',
+    done: s => s.asg[0] && subsOf(s, s.asg[0].id, 'an').length >= 2,
+    auto: s => { s.now = '2026-10-19T08:30'; addSub(s, 1, 'an', 'an_erd_v2.pdf'); } },
+  { n: 4, title: 'Bình nộp trễ', role: 'binh', at: '2026-10-21T07:40', go: 'S2',
+    how: 'Mở BT1, đọc cảnh báo quá hạn, chọn binh_erd.pdf, bấm “Nộp bài”.', chk: 'Nhãn “Trễ 7 giờ 41 phút” ở phía SV; đổi sang GV thấy cùng nhãn ở G3 (#4).',
+    done: s => s.asg[0] && subsOf(s, s.asg[0].id, 'binh').some(x => mins(x.at) > mins(s.asg[0].due)),
+    auto: s => { s.now = '2026-10-21T07:40'; addSub(s, 1, 'binh', 'binh_erd.pdf'); } },
+  { n: 5, title: 'GV chấm, lưu nháp', role: 'gv', at: '2026-10-22T14:00', go: 'G3',
+    how: 'Ở G3 bấm “Chấm” cho An (8,5) và Bình (7,0), mỗi bài bấm “Lưu nháp”.', chk: 'Đổi sang vai An, mở BT1: vẫn thấy “Chưa có điểm” (#5).',
+    done: s => s.asg[0] && !!gradeOf(s, s.asg[0].id, 'an') && !!gradeOf(s, s.asg[0].id, 'binh'),
+    auto: s => { s.now = '2026-10-22T14:00'; saveGrade(s, 1, 'an', SAMPLE_GRADE.an.score, SAMPLE_GRADE.an.comment); saveGrade(s, 1, 'binh', SAMPLE_GRADE.binh.score, SAMPLE_GRADE.binh.comment); } },
+  { n: 6, title: 'GV công bố điểm', role: 'gv', at: '2026-10-22T16:00', go: 'G3',
+    how: 'Ở G3 bấm “Công bố điểm”, rồi xác nhận.', chk: 'Đổi sang An: thấy 8,5 và nhận xét. Chi vẫn “Chưa nộp”, không bị gán điểm (#5).',
+    done: s => s.asg[0] && gradeOf(s, s.asg[0].id, 'an')?.status === 'published',
+    auto: s => { s.now = '2026-10-22T16:00'; publish(s, 1); } }
+];
+const curStep = s => (STEPS.find(st => !st.done(s)) || { n: 7 }).n;
+
+/* ---------- render ---------- */
+const $ = id => document.getElementById(id);
+const badgeSub = st => st.k === 'none' ? '<span class="badge b-none">Chưa nộp</span>' : st.k === 'late' ? `<span class="badge b-late">Trễ ${dur(st.by)}</span>` : '<span class="badge b-ok">Đúng hạn</span>';
+const badgeGrade = g => !g ? '<span class="badge b-none">Chưa chấm</span>' : g.status === 'draft' ? '<span class="badge b-draft">Nháp</span>' : '<span class="badge b-ok">Đã công bố</span>';
+const fileIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>';
+const fileChip = f => `<span class="file">${fileIcon}${esc(f)}</span>`;
+const check = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+const flashHtml = () => S.ui.flash ? `<div class="flash${S.ui.flash.err ? ' err' : ''}" role="status">${esc(S.ui.flash.text)}</div>` : '';
+const dueLine = a => { const left = mins(a.due) - mins(S.now); return left >= 0 ? `<span>Hạn nộp <span class="mono">${fmt(a.due)}</span></span><span>Còn ${dur(left)}</span>` : `<span>Hạn nộp <span class="mono">${fmt(a.due)}</span></span><span>Đã quá hạn ${dur(left)}</span>`; };
+
+function renderRoles() {
+  const items = [{ id: 'gv', label: GV.short, tag: 'GV' }, ...SV.map(s => ({ id: s.id, label: s.short, tag: 'SV' }))];
+  $('roles').innerHTML = items.map(i => `<button type="button" data-act="role" data-id="${i.id}" aria-pressed="${S.role === i.id}">${esc(i.label)}<small>${i.tag}</small></button>`).join('');
+}
+
+function renderSteps() {
+  const cur = curStep(S);
+  const focus = Math.min(S.focusStep || cur, 6);
+  $('progress').textContent = `${Math.min(cur - 1, 6)}/6 xong`;
+  $('steps').innerHTML = STEPS.map(st => {
+    const done = st.done(S), isCur = st.n === focus;
+    const roleName = st.role === 'gv' ? GV.short : svName(st.role);
+    return `<li class="step${done ? ' done' : ''}${isCur ? ' current' : ''}" data-act="focus" data-n="${st.n}">
+      <span class="dot">${done ? check : st.n}</span>
+      <div>
+        <h3>${esc(st.title)}</h3>
+        <div class="meta">${esc(roleName)} · ${fmt(st.at)}</div>
+        <p class="how">${esc(st.how)}</p>
+        <p class="chk"><b>Kiểm tra:</b> ${esc(st.chk)}</p>
+        <div class="acts">
+          <button class="btn sm primary" type="button" data-act="goto" data-n="${st.n}">Chuyển vai &amp; giờ</button>
+          ${st.n > 1 ? `<button class="btn sm" type="button" data-act="ff" data-n="${st.n}">Dựng sẵn cảnh 1–${st.n - 1}</button>` : ''}
+        </div>
+      </div>
+    </li>`;
+  }).join('');
+}
+
+function render() {
+  renderRoles(); renderSteps();
+  $('clock').value = S.now;
+  const v = S.view;
+  $('scode').textContent = v.s;
+  $('sname').textContent = SCREEN_NAME[v.s];
+  $('who').textContent = S.role === 'gv' ? `${GV.name} · ${GV.role}` : `${svName(S.role)} · Sinh viên`;
+  const fn = { G1, G2, G3, G4, S1, S2 }[v.s];
+  $('screen').innerHTML = flashHtml() + fn();
+  save();
+}
+
+/* ---------- màn hình giảng viên ---------- */
+function G1() {
+  const rows = S.asg.map(a => {
+    const st = SV.map(sv => subState(S, a, sv.id));
+    const sub = st.filter(x => x.k !== 'none').length, late = st.filter(x => x.k === 'late').length;
+    const gs = SV.map(sv => gradeOf(S, a.id, sv.id)).filter(Boolean);
+    const dr = gs.filter(g => g.status === 'draft').length, pb = gs.filter(g => g.status === 'published').length;
+    return `<div class="row"><div style="min-width:0"><div class="t">${esc(a.title)}</div>
+      <div class="m">${dueLine(a)}<span>Đã nộp <span class="mono">${sub}/${SV.length}</span>${late ? ` · trễ <span class="mono">${late}</span>` : ''}</span>${gs.length ? `<span>Điểm: ${dr ? `${dr} nháp` : ''}${dr && pb ? ', ' : ''}${pb ? `${pb} đã công bố` : ''}</span>` : ''}</div></div>
+      <button class="btn" type="button" data-act="nav" data-s="G3" data-aid="${a.id}">Xem bài nộp</button></div>`;
+  }).join('');
+  return `<div class="head"><div><h2>Bài tập · ${CLASS}</h2><p class="sub">${SV.length} sinh viên đã ghi danh (Admin tạo lớp sẵn, Client Log #2)</p></div>
+    <button class="btn primary" type="button" data-act="nav" data-s="G2">Tạo bài tập</button></div>
+    ${S.asg.length ? `<div class="list">${rows}</div>` : '<div class="empty">Lớp chưa có bài tập nào. Bấm “Tạo bài tập” để giao bài đầu tiên.</div>'}`;
+}
+
+function G2() {
+  const d = S.ui.draftAsg || defaultAsg(S);
+  return `<button class="back" type="button" data-act="nav" data-s="G1">← Bài tập của lớp</button>
+  <div class="head"><div><h2>Tạo bài tập</h2><p class="sub">Đã điền sẵn dữ liệu mẫu của kịch bản. Sửa nếu muốn thử trường hợp khác.</p></div></div>
+  <form id="f-asg" class="block" novalidate>
+    <div class="field"><label for="f-title">Tiêu đề</label><input id="f-title" name="title" value="${esc(d.title)}" required></div>
+    <div class="field"><label for="f-desc">Mô tả</label><textarea id="f-desc" name="desc">${esc(d.desc)}</textarea></div>
+    <div class="fgrid">
+      <div class="field"><label for="f-due">Hạn nộp</label><input id="f-due" name="due" type="datetime-local" value="${esc(d.due)}" required><span class="hint">Giờ Việt Nam. Nộp sau mốc này là trễ (QT1).</span></div>
+      <div class="field"><label for="f-max">Thang điểm</label><input id="f-max" name="max" type="number" min="1" max="100" value="${esc(d.max)}"></div>
+    </div>
+    <div class="field"><span style="font-size:13.5px;font-weight:600">File đề</span><div>${fileChip(d.file)}</div></div>
+    ${S.ui.err ? `<p class="err">${esc(S.ui.err)}</p>` : ''}
+    <div class="actions"><button class="btn primary" type="submit">Đăng bài</button><button class="btn" type="button" data-act="nav" data-s="G1">Huỷ</button></div>
+  </form>`;
+}
+
+function G3() {
+  const a = getA(S, S.view.aid); if (!a) return G1();
+  const st = SV.map(sv => ({ sv, s: subState(S, a, sv.id), g: gradeOf(S, a.id, sv.id), l: latest(S, a.id, sv.id), n: subsOf(S, a.id, sv.id).length }));
+  const cnt = k => st.filter(x => x.s.k === k).length;
+  const drafts = st.filter(x => x.g && x.g.status === 'draft').length, pubs = st.filter(x => x.g && x.g.status === 'published').length;
+  const rows = st.map(x => {
+    const newer = x.g && x.l && x.l.n !== x.g.subN;
+    return `<tr><td><strong>${esc(x.sv.name)}</strong></td><td>${badgeSub(x.s)}</td>
+      <td class="num">${x.l ? `${fmt(x.l.at)}<span class="muted"> · ${esc(x.l.file)}</span>` : '—'}</td>
+      <td class="num">${x.n || '—'}</td>
+      <td class="num">${x.g ? `${num(x.g.score)}/${a.max}` : '—'}</td>
+      <td>${x.l ? badgeGrade(x.g) : '—'}${newer ? '<span class="flag">Có bài nộp mới sau khi chấm</span>' : ''}</td>
+      <td>${x.l ? `<button class="btn sm" type="button" data-act="nav" data-s="G4" data-aid="${a.id}" data-sv="${x.sv.id}">${x.g ? 'Xem / sửa' : 'Chấm'}</button>` : ''}</td></tr>`;
+  }).join('');
+  const conf = S.ui.confirm && S.ui.confirm.type === 'publish';
+  return `<button class="back" type="button" data-act="nav" data-s="G1">← Bài tập của lớp</button>
+  <div class="head"><div><h2>Bài nộp · ${esc(a.title)}</h2><p class="sub" style="display:flex;flex-wrap:wrap;gap:4px 14px">${dueLine(a)}<span>Thang điểm ${a.max}</span></p></div>
+    <button class="btn primary" type="button" data-act="ask-publish" ${drafts ? '' : 'disabled'}>Công bố điểm${drafts ? ` (${drafts})` : ''}</button></div>
+  ${conf ? `<div class="confirm" role="alertdialog" aria-label="Xác nhận công bố"><p>Công bố <strong>${drafts} điểm đã chấm</strong> của ${esc(a.title)}? Sinh viên thấy điểm và nhận xét ngay sau khi công bố. Bài chưa chấm không bị ảnh hưởng (QT7).</p>
+    <div class="actions"><button class="btn primary" type="button" data-act="publish" data-aid="${a.id}">Công bố</button><button class="btn" type="button" data-act="cancel">Huỷ</button></div></div>` : ''}
+  <div class="stats">
+    <span class="stat"><b>${SV.length - cnt('none')}/${SV.length}</b>đã nộp</span>
+    <span class="stat"><b>${cnt('ok')}</b>đúng hạn</span><span class="stat"><b>${cnt('late')}</b>trễ</span><span class="stat"><b>${cnt('none')}</b>chưa nộp</span>
+    <span class="stat"><b>${drafts}</b>điểm nháp</span><span class="stat"><b>${pubs}</b>đã công bố</span>
+  </div>
+  <div class="tblwrap"><table><thead><tr><th>Sinh viên</th><th>Trạng thái nộp</th><th>Lần dùng để chấm</th><th>Số lần</th><th>Điểm</th><th>Trạng thái điểm</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="note">Điểm nháp chỉ giảng viên thấy. Sinh viên thấy điểm khi bạn bấm “Công bố điểm”.</p>`;
+}
+
+function G4() {
+  const a = getA(S, S.view.aid), sv = S.view.sv; if (!a) return G1();
+  const subs = subsOf(S, a.id, sv), l = latest(S, a.id, sv), g = gradeOf(S, a.id, sv), st = subState(S, a, sv);
+  const pre = g ? { score: g.score, comment: g.comment } : SAMPLE_GRADE[sv];
+  const hist = subs.slice().reverse().map(x => { const late = mins(x.at) - mins(a.due); return `<tr><td class="num">${x.n}</td><td class="num">${esc(x.file)}</td><td class="num">${fmt(x.at)}</td><td>${late > 0 ? `<span class="badge b-late">Trễ ${dur(late)}</span>` : '<span class="badge b-ok">Đúng hạn</span>'}</td><td>${x.n === l.n ? '<strong>Dùng để chấm</strong>' : ''}</td></tr>`; }).join('');
+  return `<button class="back" type="button" data-act="nav" data-s="G3" data-aid="${a.id}">← Bài nộp · ${esc(a.title)}</button>
+  <div class="head"><div><h2>Chấm bài · ${esc(svName(sv))}</h2><p class="sub">${esc(a.title)}</p></div><div style="display:flex;gap:6px;flex-wrap:wrap">${badgeSub(st)}${badgeGrade(g)}</div></div>
+  <div class="cols">
+    <section class="block"><header><h3>Bài dùng để chấm</h3></header>
+      <dl class="kv"><dt>File</dt><dd>${fileChip(l.file)}</dd><dt>Nộp lúc</dt><dd class="mono">${fmt(l.at)}</dd><dt>Lần nộp</dt><dd class="mono">${l.n} / ${subs.length}</dd></dl>
+      <div class="tblwrap"><table style="min-width:460px"><thead><tr><th>Lần</th><th>File</th><th>Thời điểm</th><th>Nhãn</th><th></th></tr></thead><tbody>${hist}</tbody></table></div>
+    </section>
+    <form id="f-grade" class="block" novalidate data-aid="${a.id}" data-sv="${sv}">
+      <header><h3>Điểm và nhận xét</h3></header>
+      ${g && g.status === 'published' ? `<p class="callout"><b>Điểm này đã công bố.</b> Lưu thay đổi thì sinh viên thấy điểm mới ngay; điểm cũ được giữ trong lịch sử sửa (câu hỏi mở Q6).</p>` : ''}
+      <div class="field"><label for="f-score">Điểm (0–${a.max})</label><input id="f-score" name="score" type="number" inputmode="decimal" min="0" max="${a.max}" step="0.25" value="${esc(pre.score)}"></div>
+      <div class="field"><label for="f-cmt">Nhận xét</label><textarea id="f-cmt" name="comment">${esc(pre.comment)}</textarea>${g ? '' : '<span class="hint">Đã điền sẵn điểm mẫu của kịch bản.</span>'}</div>
+      ${g && g.history.length ? `<p class="hint muted" style="font-size:12.5px">Lịch sử sửa: ${g.history.map(h => `${num(h.score)} (${fmt(h.at)})`).join(' → ')} → ${num(g.score)}</p>` : ''}
+      ${S.ui.err ? `<p class="err">${esc(S.ui.err)}</p>` : ''}
+      <div class="actions"><button class="btn primary" type="submit">${g && g.status === 'published' ? 'Lưu điểm đã sửa' : 'Lưu nháp'}</button><button class="btn" type="button" data-act="nav" data-s="G3" data-aid="${a.id}">Huỷ</button></div>
+      ${g && g.status === 'published' ? '' : '<p class="note">Lưu nháp chưa gửi điểm cho sinh viên.</p>'}
+    </form>
+  </div>`;
+}
+
+/* ---------- màn hình sinh viên ---------- */
+function S1() {
+  const me = S.role;
+  const rows = S.asg.map(a => {
+    const st = subState(S, a, me), g = visibleGrade(S, a.id, me);
+    return `<div class="row"><div style="min-width:0"><div class="t">${esc(a.title)}</div><div class="m">${dueLine(a)}</div></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${badgeSub(st)}<span class="mono" style="font-size:14px">${g ? `${num(g.score)}/${a.max}` : '<span class="muted">Chưa có điểm</span>'}</span>
+      <button class="btn" type="button" data-act="nav" data-s="S2" data-aid="${a.id}">Mở</button></div></div>`;
+  }).join('');
+  return `<div class="head"><div><h2>Bài tập của tôi</h2><p class="sub">${CLASS}</p></div></div>
+    ${S.asg.length ? `<div class="list">${rows}</div>` : '<div class="empty">Chưa có bài tập nào. Bài giảng viên giao sẽ hiện ở đây.</div>'}`;
+}
+
+function S2() {
+  const a = getA(S, S.view.aid); if (!a) return S1();
+  const me = S.role, sv = SV.find(x => x.id === me);
+  const subs = subsOf(S, a.id, me), l = latest(S, a.id, me), st = subState(S, a, me), g = visibleGrade(S, a.id, me);
+  const overdue = mins(S.now) > mins(a.due);
+  const locked = !!g;
+  const pick = S.ui.pick || '';
+  const files = [...sv.files]; if (pick && !files.includes(pick)) files.push(pick);
+  const conf = S.ui.confirm && S.ui.confirm.type === 'resub';
+
+  let submitBlock;
+  if (locked) {
+    submitBlock = '<p class="note">Giảng viên đã công bố điểm bài này nên không nộp lại được nữa (câu hỏi mở Q4).</p>';
+  } else {
+    const warn = overdue
+      ? (st.k === 'ok' ? `<p class="callout"><b>Đã quá hạn ${dur(mins(S.now) - mins(a.due))}.</b> Bài của bạn đang đúng hạn. Nếu nộp lại bây giờ, lần nộp mới bị đánh dấu Trễ và bài chuyển thành Trễ (câu hỏi mở Q2).</p>`
+                       : `<p class="callout"><b>Đã quá hạn ${dur(mins(S.now) - mins(a.due))}.</b> Bài nộp bây giờ vẫn được nhận nhưng sẽ bị đánh dấu Trễ (Client Log #4).</p>`)
+      : '';
+    submitBlock = `${warn}
+      <form id="f-sub" novalidate data-aid="${a.id}" style="display:flex;flex-direction:column;gap:12px">
+        <fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend style="font-size:13.5px;font-weight:600;margin-bottom:8px">Chọn file</legend>
+          <div class="picks">${files.map((f, i) => `<label class="pick"><input type="radio" name="file" id="pick-${i}" value="${esc(f)}" ${pick === f ? 'checked' : ''}>${esc(f)}</label>`).join('')}</div>
+          <label class="other muted" for="f-real">Hoặc chọn file thật trên máy (chỉ lấy tên file): <input type="file" id="f-real"></label>
+        </fieldset>
+        ${S.ui.err ? `<p class="err">${esc(S.ui.err)}</p>` : ''}
+        ${conf ? `<div class="confirm" role="alertdialog" aria-label="Xác nhận nộp lại"><p>Nộp lại <strong>${esc(pick)}</strong>? Lần nộp mới sẽ được dùng để chấm. Các lần nộp trước vẫn được lưu trong lịch sử.</p>
+          <div class="actions"><button class="btn primary" type="button" data-act="resub" data-aid="${a.id}">Nộp lại</button><button class="btn" type="button" data-act="cancel">Huỷ</button></div></div>`
+          : `<div class="actions"><button class="btn primary" type="submit">${l ? 'Nộp lại' : 'Nộp bài'}</button></div>`}
+      </form>`;
+  }
+
+  const hist = subs.length ? `<div class="tblwrap"><table style="min-width:460px"><thead><tr><th>Lần</th><th>File</th><th>Thời điểm</th><th>Nhãn</th><th></th></tr></thead><tbody>${
+      subs.slice().reverse().map(x => { const late = mins(x.at) - mins(a.due); return `<tr><td class="num">${x.n}</td><td class="num">${esc(x.file)}</td><td class="num">${fmt(x.at)}</td><td>${late > 0 ? `<span class="badge b-late">Trễ ${dur(late)}</span>` : '<span class="badge b-ok">Đúng hạn</span>'}</td><td>${x.n === l.n ? '<strong>Dùng để chấm</strong>' : ''}</td></tr>`; }).join('')
+    }</tbody></table></div>` : '<p class="muted" style="font-size:14px">Chưa có lần nộp nào.</p>';
+
+  const result = g
+    ? `<div class="score"><span class="big">${num(g.score)}</span><span class="of">/ ${a.max}</span></div>
+       ${g.comment ? `<p class="quote">${esc(g.comment)}</p>` : ''}
+       <p class="muted" style="font-size:13px">Công bố lúc <span class="mono">${fmt(g.publishedAt)}</span>${g.updatedAt ? ` · cập nhật <span class="mono">${fmt(g.updatedAt)}</span>` : ''}</p>`
+    : `<p><strong>Chưa có điểm.</strong> <span class="muted">Điểm và nhận xét hiện ở đây khi giảng viên công bố.</span></p>`;
+
+  return `<button class="back" type="button" data-act="nav" data-s="S1">← Bài tập của tôi</button>
+  <div class="head"><div><h2>${esc(a.title)}</h2><p class="sub" style="display:flex;flex-wrap:wrap;gap:4px 14px">${dueLine(a)}<span>Thang điểm ${a.max}</span></p></div>${badgeSub(st)}</div>
+  <section class="block"><header><h3>Đề bài</h3></header>${a.desc ? `<p style="max-width:65ch">${esc(a.desc)}</p>` : ''}<div>${fileChip(a.file)}</div></section>
+  <div class="cols">
+    <section class="block"><header><span class="scode">S2</span><h3>${l ? 'Nộp lại' : 'Nộp bài'}</h3></header>
+      ${l ? `<p style="font-size:14px">Lần nộp gần nhất: <span class="mono">${esc(l.file)}</span> lúc <span class="mono">${fmt(l.at)}</span></p>` : ''}
+      ${submitBlock}
+    </section>
+    <section class="block"><header><span class="scode">S4</span><h3>Kết quả</h3></header>${result}</section>
+  </div>
+  <section class="block"><header><span class="scode">S3</span><h3>Lịch sử nộp</h3></header>${hist}</section>`;
+}
+
+/* ---------- events ---------- */
+const home = r => (r === 'gv' ? { s: 'G1' } : { s: 'S1' });
+const clearUi = () => { S.ui = {}; };
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const act = t.dataset.act;
+  if (act === 'focus') { if (e.target.closest('button')) return; S.focusStep = Number(t.dataset.n); render(); return; }
+  if (act === 'role') { S.role = t.dataset.id; S.view = home(S.role); clearUi(); }
+  else if (act === 'nav') { S.view = { s: t.dataset.s, aid: Number(t.dataset.aid) || S.view.aid, sv: t.dataset.sv || S.view.sv }; clearUi(); }
+  else if (act === 'goto') {
+    const st = STEPS[Number(t.dataset.n) - 1];
+    S.role = st.role; S.now = st.at; clearUi(); S.focusStep = st.n;
+    const a = S.asg[0];
+    S.view = a && st.go !== 'G1' ? { s: st.go, aid: a.id } : home(st.role);
+    S.ui.flash = { text: `Đã chuyển sang vai ${st.role === 'gv' ? GV.short : svName(st.role)}, giờ ${fmt(st.at)}. Giờ làm cảnh ${st.n}.` };
+  }
+  else if (act === 'ff') {
+    const n = Number(t.dataset.n), st = STEPS[n - 1];
+    S = initial(); for (let i = 0; i < n - 1; i++) STEPS[i].auto(S);
+    S.role = st.role; S.now = st.at; S.focusStep = n;
+    S.view = st.go !== 'G1' ? { s: st.go, aid: 1 } : home(st.role);
+    S.ui = { flash: { text: `Đã dựng sẵn cảnh 1–${n - 1} bằng dữ liệu mẫu. Giờ làm cảnh ${n}.` } };
+  }
+  else if (act === 'ask-publish') { S.ui = { confirm: { type: 'publish' } }; }
+  else if (act === 'publish') { const n = publish(S, Number(t.dataset.aid)); S.ui = { flash: { text: `Đã công bố ${n} điểm. Sinh viên đã thấy điểm và nhận xét.` } }; S.focusStep = curStep(S); }
+  else if (act === 'resub') { addSub(S, Number(t.dataset.aid), S.role, S.ui.pick); S.ui = { flash: { text: `Đã nộp lại ${S.ui.pick ?? ''} lúc ${fmt(S.now)}.` } }; S.focusStep = curStep(S); }
+  else if (act === 'cancel') { const pick = S.ui.pick; S.ui = pick ? { pick } : {}; }
+  else return;
+  render();
+});
+
+document.addEventListener('change', e => {
+  if (e.target.name === 'file') { S.ui.pick = e.target.value; S.ui.err = null; render(); }
+  else if (e.target.id === 'f-real' && e.target.files && e.target.files[0]) { S.ui.pick = e.target.files[0].name; S.ui.err = null; render(); }
+  else if (e.target.id === 'clock' && e.target.value) { S.now = e.target.value.slice(0, 16); render(); }
+});
+
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === 'f-asg') {
+    const d = { title: f.elements['title'].value.trim(), desc: f.elements['desc'].value.trim(), due: f.elements['due'].value, max: Number(f.elements['max'].value) || 10, file: defaultAsg(S).file };
+    S.ui.draftAsg = d;
+    if (!d.title) { S.ui.err = 'Nhập tiêu đề bài tập.'; return render(); }
+    if (!d.due || mins(d.due) <= mins(S.now)) { S.ui.err = `Hạn nộp phải sau giờ hiện tại (${fmt(S.now)}).`; return render(); }
+    addAsg(S, d); S.view = { s: 'G1' };
+    S.ui = { flash: { text: `Đã đăng ${d.title}. Sinh viên thấy bài này ở “Bài tập của tôi”.` } }; S.focusStep = curStep(S);
+  } else if (f.id === 'f-sub') {
+    const aid = Number(f.dataset.aid), pick = S.ui.pick;
+    if (!pick) { S.ui.err = 'Chọn một file trước khi nộp.'; return render(); }
+    if (latest(S, aid, S.role)) { S.ui = { pick, confirm: { type: 'resub' } }; return render(); }
+    addSub(S, aid, S.role, pick);
+    const a = getA(S, aid), late = mins(S.now) - mins(a.due);
+    S.ui = { flash: { text: late > 0 ? `Đã nộp ${pick}. Bài được đánh dấu Trễ ${dur(late)}.` : `Đã nộp ${pick} lúc ${fmt(S.now)}, đúng hạn.` } }; S.focusStep = curStep(S);
+  } else if (f.id === 'f-grade') {
+    const aid = Number(f.dataset.aid), sv = f.dataset.sv, a = getA(S, aid);
+    const raw = f.elements['score'].value.replace(',', '.'), score = Number(raw);
+    if (raw === '' || Number.isNaN(score) || score < 0 || score > a.max) { S.ui.err = `Nhập điểm từ 0 đến ${a.max}.`; return render(); }
+    const was = gradeOf(S, aid, sv)?.status;
+    saveGrade(S, aid, sv, score, f.elements['comment'].value.trim());
+    S.view = { s: 'G3', aid };
+    S.ui = { flash: { text: was === 'published' ? `Đã cập nhật điểm của ${svName(sv)}. Sinh viên thấy điểm mới.` : `Đã lưu nháp điểm của ${svName(sv)}. Sinh viên chưa thấy điểm này.` } };
+    S.focusStep = curStep(S);
+  } else return;
+  render();
+});
+
+$('reset').addEventListener('click', () => { S = initial(); S.ui = { flash: { text: 'Đã làm lại từ đầu. Bắt đầu từ cảnh 1.' } }; render(); });
+
+/* ---------- boot ---------- */
+function boot(data) {
+  S = (data && data.state) || load() || initial();
+  if (!S.focusStep) S.focusStep = curStep(S);
+  render();
+}
+try { window.claude?.hot?.snapshot?.(() => ({ state: S })); } catch (e) {}
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+})();
+</script>
+
+</body></html>

@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ApiClientError } from '../lib/apiClient';
 import AuthLayout from '../layouts/AuthLayout';
+import { noticeFrom } from '../lib/notice';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -18,6 +19,7 @@ export default function LoginPage() {
 
   // URL trước đó muốn vào (nếu bị ProtectedRoute chặn)
   const fromPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+  const notice = noticeFrom(location.state);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -51,6 +53,7 @@ export default function LoginPage() {
     <AuthLayout>
       <h1 className="auth-title">Đăng nhập</h1>
       <p className="auth-subtitle">Hệ thống Quản lý Học tập · Nhóm 2</p>
+      {notice && <p className="auth-notice" role="status">{notice}</p>}
 
       <form
         id="login-form"
@@ -114,7 +117,7 @@ export default function LoginPage() {
 
       <p className="auth-hint">
         Tài khoản được cấp sẵn. Không có chức năng tự đăng ký.
-        Demo: AD001 / GV001 / SV001 — mật khẩu <code>local-demo-password</code>.
+        Demo: ADMIN001 (mock: AD001) / GV001 / SV001 — mật khẩu <code>local-demo-password</code>.
       </p>
     </AuthLayout>
   );
