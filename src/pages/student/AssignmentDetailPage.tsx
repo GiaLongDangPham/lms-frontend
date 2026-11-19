@@ -22,6 +22,7 @@ import {
   SubmissionStatus,
 } from '../../components/assignment/AssignmentUI';
 import ClassNavTabs from '../../components/class/ClassNavTabs';
+import AssignmentComments from '../../components/assignment/AssignmentComments';
 
 export default function AssignmentDetailPage() {
   const { assignmentId = '' } = useParams();
@@ -152,6 +153,7 @@ export default function AssignmentDetailPage() {
           <p>Điểm và nhận xét sẽ xuất hiện sau khi giảng viên công bố.</p>
         </section>
       )}
+      <AssignmentComments assignmentId={assignment.id} />
     </section>
   );
 }

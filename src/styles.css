@@ -919,6 +919,122 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   white-space: pre-wrap;
 }
 
+.student-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.assignment-notification-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.assignment-notification {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.assignment-notification > h2,
+.assignment-notification p {
+  margin: 0;
+}
+
+.assignment-notification--unread {
+  background: #e3edf5;
+}
+
+.assignment-notification-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.assignment-notification-heading h2 {
+  margin: 0;
+}
+
+.assignment-notification-preview-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assignment-notification-preview-list li {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.assignment-notification-preview-list p {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.assignment-notification-preview-list span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.assignment-comments {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.assignment-comments > h2,
+.assignment-comments > p {
+  margin: 0;
+}
+
+.assignment-comment-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assignment-comment-list li {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: #fff;
+}
+
+.assignment-comment-list li.assignment-comment--mine {
+  border-color: #b9d1e4;
+  background: #f1f7fb;
+}
+
+.assignment-comment-list li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.assignment-comment-list li > div span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.assignment-comment-list li > p {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assignment-comment-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -949,7 +1065,8 @@ form { display: flex; flex-direction: column; gap: var(--space-4); }
   }
 
   .assignment-form-grid,
-  .assignment-stat-grid {
+  .assignment-stat-grid,
+  .student-dashboard-grid {
     grid-template-columns: 1fr;
   }
 

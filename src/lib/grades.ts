@@ -73,7 +73,6 @@ export interface GradebookRow {
   student: Submission['student'];
   submission: Submission | null;
   grade: GradeSummary | null;
-  autoZeroPublished: boolean;
 }
 
 export interface AssignmentGradebook {
@@ -104,6 +103,20 @@ export function saveGrade(
     method: 'PUT',
     body: JSON.stringify(grade),
   });
+}
+
+export function saveAutomaticZeroCorrection(
+  assignmentId: string,
+  studentId: string,
+  grade: { score: number; feedback: string | null },
+): Promise<Grade> {
+  return apiFetch(
+    `/assignments/${encodeURIComponent(assignmentId)}/grades/${encodeURIComponent(studentId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(grade),
+    },
+  );
 }
 
 export function publishAssignmentGrades(assignmentId: string): Promise<AssignmentPublicationResult> {
@@ -150,17 +163,6 @@ async function getAllPages<T>(loadPage: (cursor?: string | null) => Promise<Page
   return items;
 }
 
-async function findPublishedAutomaticZero(
-  assignmentId: string,
-  studentId: string,
-): Promise<boolean> {
-  const history = await getTeacherGradeHistory(assignmentId, studentId);
-  const latestPublished = history?.items
-    .filter((item) => item.status === 'PUBLISHED')
-    .sort((left, right) => right.version - left.version)[0];
-  return latestPublished?.source === 'AUTO_ZERO_NO_SUBMISSION';
-}
-
 export async function getAssignmentGradebook(assignmentId: string): Promise<AssignmentGradebook> {
   const assignment = await getAssignment(assignmentId);
   const [submissions, enrollments] = await Promise.all([
@@ -177,7 +179,6 @@ export async function getAssignmentGradebook(assignmentId: string): Promise<Assi
       student: enrollment.student,
       submission,
       grade: submission?.grade ?? null,
-      autoZeroPublished: false,
     };
   });
   const includedStudentIds = new Set(rows.map((row) => row.student.id));
@@ -187,23 +188,17 @@ export async function getAssignmentGradebook(assignmentId: string): Promise<Assi
         student: submission.student,
         submission,
         grade: submission.grade ?? null,
-        autoZeroPublished: false,
       });
     }
   }
 
-  const missingSubmissionRows = rows.filter((row) => !row.submission);
-  for (let index = 0; index < missingSubmissionRows.length; index += 8) {
-    const batch = missingSubmissionRows.slice(index, index + 8);
-    const publicationStates = await Promise.all(batch.map((row) => (
-      findPublishedAutomaticZero(assignmentId, row.student.id)
-    )));
-    batch.forEach((row, rowIndex) => {
-      row.autoZeroPublished = publicationStates[rowIndex] ?? false;
-    });
-  }
-
   return { assignment, rows };
+}
+
+export function isValidGradeScore(value: string, maxScore: number): boolean {
+  if (!/^\d+(?:\.\d{0,2})?$/.test(value)) return false;
+  const score = Number(value);
+  return Number.isFinite(score) && score >= 0 && score <= maxScore;
 }
 
 export function isGradeReadyForPublication(grade: GradeSummary | null): boolean {

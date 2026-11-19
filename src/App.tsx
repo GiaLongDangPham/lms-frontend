@@ -26,9 +26,11 @@ import TeacherMaterialsPage from './pages/teacher/MaterialsPage';
 import TeacherMaterialFormPage from './pages/teacher/MaterialFormPage';
 import GradeSubmissionPage from './pages/teacher/GradeSubmissionPage';
 import PublishAssignmentGradesPage from './pages/teacher/PublishAssignmentGradesPage';
+import AutomaticZeroGradePage from './pages/teacher/AutomaticZeroGradePage';
 import StudentAssignmentsPage from './pages/student/AssignmentsPage';
 import StudentAssignmentDetailPage from './pages/student/AssignmentDetailPage';
 import StudentAssignmentResultPage from './pages/student/AssignmentResultPage';
+import StudentNotificationsPage from './pages/student/NotificationsPage';
 import StudentSubmissionFormPage from './pages/student/SubmissionFormPage';
 import StudentSubmissionHistoryPage from './pages/student/SubmissionHistoryPage';
 import StudentSubmissionVersionPage from './pages/student/SubmissionVersionPage';
@@ -109,6 +111,7 @@ export default function App() {
             <Route path="assignments/:assignmentId/submissions" element={<TeacherAssignmentSubmissionsPage />} />
             <Route path="assignments/:assignmentId/submissions/:submissionId/grade" element={<GradeSubmissionPage />} />
             <Route path="assignments/:assignmentId/publish" element={<PublishAssignmentGradesPage />} />
+            <Route path="assignments/:assignmentId/grades/:studentId/edit" element={<AutomaticZeroGradePage />} />
           </Route>
 
           {/* Student routes */}
@@ -129,7 +132,7 @@ export default function App() {
             <Route path="assignments/:assignmentId/submit" element={<StudentSubmissionFormPage />} />
             <Route path="assignments/:assignmentId/history" element={<StudentSubmissionHistoryPage />} />
             <Route path="assignments/:assignmentId/history/:versionNumber" element={<StudentSubmissionVersionPage />} />
-            <Route path="notifications" element={<StudentDashboardPage />} />
+            <Route path="notifications" element={<StudentNotificationsPage />} />
           </Route>
 
           {/* 404 */}
