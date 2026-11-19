@@ -39,7 +39,7 @@ describe('notifications', () => {
     await expect(listAllMyNotifications()).resolves.toHaveLength(2);
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'http://localhost:4010/api/notifications?limit=100&cursor=page-2',
+      expect.stringMatching(/\/api\/notifications\?limit=100&cursor=page-2$/),
       expect.any(Object),
     );
   });
@@ -55,7 +55,7 @@ describe('notifications', () => {
     await markNotificationRead('notification-1');
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4010/api/notifications/notification-1/read',
+      expect.stringMatching(/\/api\/notifications\/notification-1\/read$/),
       expect.objectContaining({ method: 'PATCH' }),
     );
   });

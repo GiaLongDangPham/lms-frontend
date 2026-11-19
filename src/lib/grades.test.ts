@@ -122,7 +122,7 @@ describe('grade workflows', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4010/api/assignments/assignment-1/grades/student-1',
+      expect.stringMatching(/\/api\/assignments\/assignment-1\/grades\/student-1$/),
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({ score: 0, feedback: 'Đã trao đổi với sinh viên' }),

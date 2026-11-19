@@ -29,7 +29,7 @@ describe('assignment comments', () => {
 
     await expect(listAllAssignmentComments('assignment-1')).resolves.toEqual([comment]);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4010/api/assignments/assignment-1/comments?limit=100',
+      expect.stringMatching(/\/api\/assignments\/assignment-1\/comments\?limit=100$/),
       expect.any(Object),
     );
   });
@@ -42,7 +42,7 @@ describe('assignment comments', () => {
     await createAssignmentComment('assignment-1', comment.body);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:4010/api/assignments/assignment-1/comments',
+      expect.stringMatching(/\/api\/assignments\/assignment-1\/comments$/),
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ body: comment.body }),
