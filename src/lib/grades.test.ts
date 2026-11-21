@@ -158,13 +158,14 @@ describe('grade workflows', () => {
           },
         ],
         page: { nextCursor: null },
-      })));
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{student, score: 0, status: 'PUBLISHED', source: 'AUTO_ZERO_NO_SUBMISSION'}], page: {nextCursor: null} })));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(getAssignmentGradebook('assignment-1')).resolves.toMatchObject({
-      rows: [{ submission: null }, { submission: null }],
+      rows: [{ submission: null, grade: {score: 0, source: 'AUTO_ZERO_NO_SUBMISSION'} }, { submission: null }],
     });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock).not.toHaveBeenCalledWith(
       expect.stringContaining('/grades/'),
       expect.anything(),

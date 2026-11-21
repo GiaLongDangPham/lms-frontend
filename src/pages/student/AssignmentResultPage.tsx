@@ -74,6 +74,7 @@ export default function AssignmentResultPage() {
           <span className="status-badge status-badge--success">Đã công bố</span>
           <h2>{result.score} / {assignment.maxScore}</h2>
           <p>Thời gian công bố: {formatDateTime(result.publishedAt)}</p>
+          {result.gradedBy && <p>Giảng viên chấm: {result.gradedBy.fullName}</p>}
           {result.source === 'AUTO_ZERO_NO_SUBMISSION' ? (
             <p>Kết quả 0 điểm được ghi nhận tự động vì bạn chưa nộp bài tại thời điểm công bố.</p>
           ) : (
@@ -94,9 +95,9 @@ export default function AssignmentResultPage() {
         <section className="assignment-card">
           <h2>Lịch sử kết quả đã công bố</h2>
           <ol className="assignment-grade-history">
-            {[...publishedHistory].sort((left, right) => right.version - left.version).map((entry) => (
+            {[...publishedHistory].sort((left, right) => left.version - right.version).map((entry, index) => (
               <li key={entry.version}>
-                <strong>Lần {entry.version}: {entry.score} / {assignment.maxScore}</strong>
+                <strong>Lần {index + 1}: {entry.score} / {assignment.maxScore}</strong>
                 <span>{formatDateTime(entry.changedAt)}</span>
                 {entry.feedback && <p>{entry.feedback}</p>}
               </li>

@@ -5,6 +5,7 @@ import {
   getAssignment,
   getLockMessage,
   getMySubmission,
+  getMyPublishedResult,
   isSubmissionLocked,
   submitAssignment,
   uploadFile,
@@ -21,6 +22,7 @@ export default function SubmissionFormPage() {
   const navigate = useNavigate();
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
+  const [published, setPublished] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -34,13 +36,15 @@ export default function SubmissionFormPage() {
       setLoading(true);
       setError(null);
       try {
-        const [loadedAssignment, loadedSubmission] = await Promise.all([
+        const [loadedAssignment, loadedSubmission, loadedResult] = await Promise.all([
           getAssignment(assignmentId),
           getMySubmission(assignmentId),
+          getMyPublishedResult(assignmentId),
         ]);
         if (cancelled) return;
         setAssignment(loadedAssignment);
         setSubmission(loadedSubmission);
+        setPublished(loadedResult !== null);
       } catch (loadError: unknown) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Không tải được bài tập.');
       } finally {
@@ -76,7 +80,7 @@ export default function SubmissionFormPage() {
       setError('Vui lòng chọn ít nhất một tệp trước khi gửi bài.');
       return;
     }
-    if (isSubmissionLocked(submission)) {
+    if (published || isSubmissionLocked(submission)) {
       setError(submission ? getLockMessage(submission) : 'Bài tập đã khóa nhận bài.');
       return;
     }
@@ -112,7 +116,7 @@ export default function SubmissionFormPage() {
   if (loading) return <LoadingState label="Đang tải trang nộp bài…" />;
   if (error && !assignment) return <ErrorState message={error} />;
   if (!assignment) return <ErrorState message="Không tìm thấy bài tập." />;
-  const locked = isSubmissionLocked(submission);
+  const locked = published || isSubmissionLocked(submission);
 
   return (
     <section className="assignment-page">
@@ -125,7 +129,7 @@ export default function SubmissionFormPage() {
       {locked ? (
         <section className="assignment-notice assignment-notice--warning">
           <strong>Đã khóa nộp bài</strong>
-          <p>{submission ? getLockMessage(submission) : 'Bài tập hiện không nhận bài nộp.'}</p>
+          <p>{published ? 'Bài tập đã công bố kết quả và không nhận bài nộp.' : submission ? getLockMessage(submission) : 'Bài tập hiện không nhận bài nộp.'}</p>
           <Link className="btn btn--secondary" to={`/student/assignments/${assignment.id}`}>Về bài tập</Link>
         </section>
       ) : (

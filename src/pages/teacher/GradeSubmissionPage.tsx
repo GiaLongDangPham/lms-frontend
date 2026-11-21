@@ -157,6 +157,14 @@ export default function GradeSubmissionPage() {
         />
         {downloadError && <p className="assignment-inline-error" role="alert">{downloadError}</p>}
       </section>
+      <section className="assignment-card">
+        <h2>Lịch sử nộp bài · {submission.versions.length} lần nộp</h2>
+        {submission.versions.map(version => <article key={version.versionNumber}>
+          <h3>Phiên bản #{version.versionNumber}{version.versionNumber === submission.currentVersionNumber ? ' · Hiện hành' : ''}</h3>
+          <p>{formatDateTime(version.submittedAt)} · {version.isLate ? 'Nộp trễ' : 'Đúng hạn'}</p>
+          <AssignmentFiles files={version.files} onDownload={file => void handleDownload(file)} emptyLabel="Không có tệp." />
+        </article>)}
+      </section>
 
       <form className="assignment-card assignment-form" onSubmit={(event) => void handleSave(event)}>
         <h2>Điểm và nhận xét</h2>

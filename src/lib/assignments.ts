@@ -82,6 +82,7 @@ export interface PublishedResult {
   status: 'PUBLISHED';
   source: 'MANUAL' | 'AUTO_ZERO_NO_SUBMISSION';
   publishedAt: string;
+  gradedBy?: { id: string; schoolCode: string; fullName: string; role: string } | null;
 }
 
 export interface Page<T> {
@@ -282,10 +283,15 @@ export async function getMyPublishedResult(assignmentId: string): Promise<Publis
   }
 }
 
-export function submitAssignment(assignmentId: string, fileIds: string[]): Promise<Submission> {
-  return apiFetch(`/assignments/${encodeURIComponent(assignmentId)}/submissions`, {
+export async function submitAssignment(assignmentId: string, fileIds: string[]): Promise<Submission> {
+  return apiFetch<Submission>(`/assignments/${encodeURIComponent(assignmentId)}/submissions`, {
     method: 'POST',
     body: JSON.stringify({ fileIds }),
+  }).catch((error: unknown) => {
+    if (error instanceof ApiClientError && error.code === 'GRADE_LOCKS_SUBMISSION') {
+      throw new Error('Bài đã được chấm hoặc công bố kết quả. Bạn không thể nộp hoặc nộp lại.');
+    }
+    throw error;
   });
 }
 

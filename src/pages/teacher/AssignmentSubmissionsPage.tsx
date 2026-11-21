@@ -159,7 +159,7 @@ export default function AssignmentSubmissionsPage() {
                 return (
                   <tr key={row.student.id}>
                     <td>{row.student.fullName} · {row.student.schoolCode}</td>
-                    <td>{version ? formatDateTime(version.submittedAt) : '—'}</td>
+                    <td>{version ? <>{formatDateTime(version.submittedAt)}<br />{row.submission?.versions.length} lần nộp</> : '—'}</td>
                     <td>
                       <span className={`status-badge status-badge--${status === 'LATE' ? 'warning' : status === 'SUBMITTED' ? 'success' : 'neutral'}`}>
                         {statusLabels[status]}
@@ -167,6 +167,7 @@ export default function AssignmentSubmissionsPage() {
                     </td>
                     <td>
                       {row.grade?.score ?? '—'}
+                      {row.grade?.source === 'AUTO_ZERO_NO_SUBMISSION' && <span> · 0 tự động</span>}
                     </td>
                     <td>
                       {gradeStatus

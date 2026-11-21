@@ -103,3 +103,9 @@ Spec/plan: sibling backend `docs/superpowers/{specs,plans}/I2a-thong-bao.md`.
 I2b: `node scripts/integration-acceptance.mjs I2b` additionally checks shared comments,
 persistence and class access on real UI/API. Deployment uses Dockerfile + deploy/nginx.conf;
 see sibling backend deploy/README.md. No remote staging deployment has occurred.
+
+T4: `node scripts/integration-acceptance.mjs T4` additionally checks automatic-zero
+grades and correction, score precision, late submission history/downloads, Draft
+privacy, Published locks, actual grader identity and the mobile result view. Real
+UI/API/PostgreSQL are used with an in-process object-storage adapter; this does not
+verify a deployed S3/MinIO service. See backend `docs/superpowers/plans/T4-system-test.md`.

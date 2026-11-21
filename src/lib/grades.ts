@@ -3,6 +3,7 @@ import {
   getAssignment,
   listAssignmentSubmissions,
   listEnrollments,
+  pageQuery,
   type Assignment,
   type Enrollment,
   type GradeSummary,
@@ -60,6 +61,7 @@ export interface PublishedGrade {
   source: 'MANUAL' | 'AUTO_ZERO_NO_SUBMISSION';
   publishedBy: UserSummary;
   publishedAt: string;
+  gradedBy?: UserSummary | null;
 }
 
 export interface AssignmentPublicationResult {
@@ -165,10 +167,12 @@ async function getAllPages<T>(loadPage: (cursor?: string | null) => Promise<Page
 
 export async function getAssignmentGradebook(assignmentId: string): Promise<AssignmentGradebook> {
   const assignment = await getAssignment(assignmentId);
-  const [submissions, enrollments] = await Promise.all([
+  const [submissions, enrollments, grades] = await Promise.all([
     getAllPages((cursor) => listAssignmentSubmissions(assignmentId, cursor)),
     getAllPages((cursor) => listEnrollments(assignment.classId, cursor)),
+    getAllPages((cursor) => apiFetch<Page<Grade>>(`/assignments/${encodeURIComponent(assignmentId)}/grades${pageQuery(cursor)}`)),
   ]);
+  const gradesByStudent = new Map(grades.map(grade => [grade.student.id, grade]));
   const submissionsByStudent = new Map(
     submissions.map((submission) => [submission.student.id, submission]),
   );
@@ -178,7 +182,7 @@ export async function getAssignmentGradebook(assignmentId: string): Promise<Assi
     return {
       student: enrollment.student,
       submission,
-      grade: submission?.grade ?? null,
+      grade: gradesByStudent.get(enrollment.student.id) ?? submission?.grade ?? null,
     };
   });
   const includedStudentIds = new Set(rows.map((row) => row.student.id));
@@ -187,8 +191,13 @@ export async function getAssignmentGradebook(assignmentId: string): Promise<Assi
       rows.push({
         student: submission.student,
         submission,
-        grade: submission.grade ?? null,
+        grade: gradesByStudent.get(submission.student.id) ?? submission.grade ?? null,
       });
+    }
+  }
+  for (const grade of grades) {
+    if (!rows.some(row => row.student.id === grade.student.id)) {
+      rows.push({ student: grade.student, submission: null, grade });
     }
   }
 

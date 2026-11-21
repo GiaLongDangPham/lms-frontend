@@ -78,7 +78,7 @@ export default function AssignmentDetailPage() {
     return <ErrorState message={error ?? 'Không tìm thấy bài tập.'} />;
   }
 
-  const locked = isSubmissionLocked(submission);
+  const locked = result !== null || isSubmissionLocked(submission);
   const currentVersion = submission?.versions.find(
     (version) => version.versionNumber === submission.currentVersionNumber,
   );
