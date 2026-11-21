@@ -99,3 +99,7 @@ PLAYWRIGHT_MODULE_PATH to an installed Playwright module if not locally resolvab
 and optionally ACCEPTANCE_CHROMIUM_PATH. Credentials are random per run and not logged.
 Artifacts go to ignored `.acceptance/`. No request interception or mock backend is used.
 Spec/plan: sibling backend `docs/superpowers/{specs,plans}/I2a-thong-bao.md`.
+
+I2b: `node scripts/integration-acceptance.mjs I2b` additionally checks shared comments,
+persistence and class access on real UI/API. Deployment uses Dockerfile + deploy/nginx.conf;
+see sibling backend deploy/README.md. No remote staging deployment has occurred.
