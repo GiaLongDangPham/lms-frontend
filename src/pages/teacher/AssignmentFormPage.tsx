@@ -91,6 +91,10 @@ export default function AssignmentFormPage() {
       setError('Vui lòng nhập lớp, tiêu đề, hạn nộp và thang điểm hợp lệ.');
       return;
     }
+    if (!editing && new Date(deadlineAt).getTime() <= Date.now()) {
+      setError('Hạn nộp phải ở tương lai khi tạo bài tập.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -174,6 +178,7 @@ export default function AssignmentFormPage() {
             <input
               className="form-input"
               type="datetime-local"
+              min={editing ? undefined : toDateTimeInput(new Date().toISOString())}
               value={deadlineAt}
               onChange={(event) => setDeadlineAt(event.target.value)}
               required

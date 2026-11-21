@@ -6,7 +6,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const backend = path.resolve(process.env.ACCEPTANCE_BACKEND_DIR || path.join(root, '../lms-backend'));
 const { Pool } = createRequire(path.join(backend, 'package.json'))('pg');
@@ -36,9 +37,14 @@ try {
     assert.equal(run.status, 0, `${script} failed`);
   }
   pool = new Pool({ connectionString: target.toString() });
+  const objects = new Map();
+  const storage = { bucket: 'acceptance-private',
+    async put(key, filename) { objects.set(key, await readFile(filename)); },
+    async get(key) { if (!objects.has(key)) throw new Error('Missing test object'); return Readable.from(objects.get(key)); },
+    async remove(key) { objects.delete(key); } };
   const notifications = new NotificationService(new NotificationRepository(pool));
   server = createApp({ corsOrigins: [origin], checkDatabase: async () => { await pool.query('SELECT 1'); }, business: {
-    pool, notificationService: notifications, auth: { secret: randomBytes(32).toString('hex'), issuer: 'acceptance',
+    pool, storage, notificationService: notifications, auth: { secret: randomBytes(32).toString('hex'), issuer: 'acceptance',
       audience: 'acceptance', origins: [origin], cookieSecure: false, cookieSameSite: 'lax' },
   } }).listen(apiPort); await once(server, 'listening');
   process.env.VITE_API_BASE_URL = base;
@@ -58,6 +64,7 @@ try {
   }
   async function login(code) {
     await page.goto(origin + '/login'); await page.locator('#login-school-code').fill(code);
+    assert.equal(await page.getByText('local-demo-password', { exact: true }).count(), 0);
     await page.locator('#login-school-password').fill(password); await page.locator('#login-submit-btn').click();
     await page.waitForURL(new RegExp(code.startsWith('GV') ? '/teacher' : '/student'));
   }
@@ -83,6 +90,11 @@ try {
     assert.ok(event?.body.includes('Nghiệm thu tích hợp')); assert.ok(event.body.includes('Lớp Demo A'));
   });
   await login('SV001');
+  if (evidence.mode === 'T4') await check('T4 Bug-06 direct submit form stays locked after automatic zero', async () => {
+    await page.goto(origin + `/student/assignments/${assignmentId}/submit`);
+    await page.getByText('Đã khóa nộp bài', { exact: true }).waitFor({ timeout: 5000 });
+    assert.equal(await page.locator('input[type="file"]').count(), 0);
+  });
   await check('I2a sidebar unread badge, read and reload persistence', async () => {
     const badge = page.locator('nav a[href="/student/notifications"] [aria-label$="thông báo chưa đọc"]');
     await badge.waitFor({ timeout: 5000 }); assert.ok(Number(await badge.innerText()) >= 3);
@@ -105,6 +117,70 @@ try {
     await page.goto(origin + `/teacher/assignments/${assignmentId}/submissions`);
     await page.getByText('Câu hỏi nghiệm thu <b>văn bản</b>', { exact: true }).waitFor();
   });
+  if (evidence.mode === 'T4') {
+    await check('T4 Bug-07 aggregate gradebook shows zero without per-student history fanout', async () => {
+      const historyRequests = [];
+      const watch = req => { if (req.url().includes('/grades/') && req.url().includes('/history')) historyRequests.push(req.url()); };
+      page.on('request', watch);
+      await page.goto(origin + `/teacher/assignments/${assignmentId}/submissions`);
+      await page.getByRole('table').waitFor();
+      const row = page.getByRole('row').filter({ hasText: 'SV002' });
+      assert.ok((await row.innerText()).includes('0 tự động')); assert.deepEqual(historyRequests, []);
+      page.off('request', watch);
+      await page.screenshot({ path: path.join(output, 'T4-gradebook.png'), fullPage: true });
+    });
+    await check('T4 Fail-05/06 corrects automatic zero through real teacher UI', async () => {
+      await page.getByRole('row').filter({ hasText: 'SV002' }).getByRole('link', { name: 'Kiểm tra điểm 0' }).click();
+      const score = page.getByRole('spinbutton'); await score.waitFor();
+      await score.fill('8.125'); assert.equal(await score.evaluate(el => el.checkValidity()), false);
+      await score.fill('2.5'); await page.getByRole('textbox', { name: 'Nhận xét' }).fill('Điều chỉnh nghiệm thu');
+      await page.getByRole('button', { name: 'Lưu điều chỉnh', exact: true }).click();
+      await page.getByText('2.5 / 10', { exact: true }).first().waitFor();
+      await page.goto(origin + `/teacher/assignments/${assignmentId}/submissions`);
+      await page.getByRole('table').waitFor();
+      assert.ok((await page.getByRole('row').filter({ hasText: 'SV002' }).innerText()).includes('2.5'));
+    });
+    const a = await api(`/classes/${classId}/assignments`, teacher, 'POST', {
+      title: 'T4 lịch sử và điểm', deadlineAt: new Date(Date.now() + 3_600_000).toISOString(), maxScore: 10 });
+    assert.equal(a.status, 201); const aId = a.data.id;
+    const pdf = Buffer.from('%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n%%EOF');
+    async function uploadAndSubmit(filename) {
+      const form = new FormData(); form.set('file', new Blob([pdf], { type: 'application/pdf' }), filename);
+      const response = await fetch(base + '/files', { method: 'POST', headers: { Authorization: `Bearer ${student}`, Origin: origin }, body: form });
+      assert.equal(response.status, 201); const file = await response.json();
+      return api(`/assignments/${aId}/submissions`, student, 'POST', { fileIds: [file.id] });
+    }
+    const first = await uploadAndSubmit('first.pdf'); assert.equal(first.status, 201);
+    await pool.query("UPDATE assignments SET deadline_at=now()-interval '1 hour' WHERE id=$1", [aId]);
+    const second = await uploadAndSubmit('second.pdf'); assert.equal(second.status, 201);
+    assert.equal(second.data.versions[1].isLate, true); assert.deepEqual(second.data.versions[0], first.data.versions[0]);
+    await check('T4 Bug-03/05 late versions persist and teacher can see/download each version', async () => {
+      await page.goto(origin + `/teacher/assignments/${aId}/submissions`);
+      await page.getByRole('row').filter({ hasText: 'SV001' }).getByRole('link', { name: 'Chấm bài', exact: true }).click();
+      await page.getByRole('heading', { name: 'Lịch sử nộp bài · 2 lần nộp' }).waitFor();
+      const history = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Lịch sử nộp bài · 2 lần nộp' }) }).last();
+      await history.getByText('first.pdf', { exact: false }).first().waitFor();
+      const download = page.waitForEvent('download');
+      await history.getByRole('listitem').filter({ hasText: 'first.pdf' }).getByRole('button', { name: 'Tải xuống', exact: true }).click();
+      const file = await download; assert.ok((await readFile(await file.path())).equals(pdf));
+      await page.screenshot({ path: path.join(output, 'T4-teacher-history.png'), fullPage: true });
+    });
+    await check('T4 Draft locks versions and remains invisible; Published exposes actual grader and display history starts at one', async () => {
+      const teacher2 = await token('GV002');
+      assert.equal((await api(`/submissions/${first.data.id}/grade`, teacher2, 'PUT', { gradedVersionNumber: 2, score: 8.5, feedback: 'Nhận xét chính thức' })).status, 200);
+      assert.equal((await api(`/assignments/${aId}/my-result`, student)).status, 404);
+      assert.equal((await uploadAndSubmit('locked.pdf')).data.error.code, 'GRADE_LOCKS_SUBMISSION');
+      assert.equal((await api(`/assignments/${aId}/grades/publish`, teacher, 'POST')).status, 200);
+      await page.locator('#teacher-logout-btn').click(); await login('SV001');
+      await page.goto(origin + `/student/assignments/${aId}/result`);
+      await page.getByText('Giảng viên chấm: Giáo viên Demo 2', { exact: true }).waitFor();
+      await page.getByText('Lần 1: 8.5 / 10', { exact: true }).waitFor();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForFunction(() => document.querySelector('#app-sidebar').getBoundingClientRect().right <= 0);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.screenshot({ path: path.join(output, 'T4-student-result-mobile.png'), fullPage: true });
+    });
+  }
   assert.deepEqual(errors, []); evidence.finishedAt = new Date().toISOString();
   await writeFile(path.join(output, `${evidence.mode}-evidence.json`), JSON.stringify(evidence, null, 2));
 } finally {

@@ -81,7 +81,7 @@ export default function LoginPage() {
         </div>
 
         <div className="form-field">
-          <label htmlFor="login-password" className="form-label">
+          <label htmlFor="login-school-password" className="form-label">
             Mật khẩu
           </label>
           <input
@@ -117,7 +117,6 @@ export default function LoginPage() {
 
       <p className="auth-hint">
         Tài khoản được cấp sẵn. Không có chức năng tự đăng ký.
-        Demo: ADMIN001 (mock: AD001) / GV001 / SV001 — mật khẩu <code>local-demo-password</code>.
       </p>
     </AuthLayout>
   );
