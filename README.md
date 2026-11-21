@@ -89,3 +89,13 @@ Long review PR của Khang; Khang review F2 của Long và F4 của Nam.
 
 Tài liệu điều phối trong repo backend: `docs/superpowers/specs/S1-moi-truong.md`,
 `docs/superpowers/plans/S1-moi-truong.md`, `docs/superpowers/plans/S1-cau-hoi.md`.
+
+## I2a acceptance
+
+`node scripts/integration-acceptance.mjs I2a` runs the real Vite UI and compiled backend
+against a uniquely created local PostgreSQL database, then drops only that database.
+Build the sibling backend first. Set ACCEPTANCE_DATABASE_URL to a local admin DB,
+PLAYWRIGHT_MODULE_PATH to an installed Playwright module if not locally resolvable,
+and optionally ACCEPTANCE_CHROMIUM_PATH. Credentials are random per run and not logged.
+Artifacts go to ignored `.acceptance/`. No request interception or mock backend is used.
+Spec/plan: sibling backend `docs/superpowers/{specs,plans}/I2a-thong-bao.md`.

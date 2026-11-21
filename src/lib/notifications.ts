@@ -34,10 +34,12 @@ export function listMyNotifications(
   return apiFetch(`/notifications${pageQuery(cursor, limit)}`);
 }
 
-export function markNotificationRead(notificationId: string): Promise<Notification> {
-  return apiFetch(`/notifications/${encodeURIComponent(notificationId)}/read`, {
+export async function markNotificationRead(notificationId: string): Promise<Notification> {
+  const updated = await apiFetch<Notification>(`/notifications/${encodeURIComponent(notificationId)}/read`, {
     method: 'PATCH',
   });
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('lms-notifications-changed'));
+  return updated;
 }
 
 export async function listAllMyNotifications(): Promise<Notification[]> {

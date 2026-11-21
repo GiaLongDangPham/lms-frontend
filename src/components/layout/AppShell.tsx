@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import NotificationBadge from '../assignment/NotificationBadge';
 
 export interface NavItem {
   to: string;
@@ -95,6 +96,7 @@ export default function AppShell({
                 >
                   <span aria-hidden="true">{item.icon}</span>
                   {item.label}
+                  {item.to === '/student/notifications' && <NotificationBadge />}
                 </NavLink>
               </li>
             ))}
