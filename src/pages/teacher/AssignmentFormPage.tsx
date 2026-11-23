@@ -1,11 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AssignmentHeader, ErrorState, LoadingState } from '../../components/assignment/AssignmentUI';
+import {
+  ApiClientError,
+} from '../../lib/apiClient';
 import {
   createAssignment,
   findUnsupportedUpload,
   formatFileSize,
   getAssignment,
+  isFutureDeadline,
   listClasses,
   toDateTimeInput,
   updateAssignment,
@@ -32,6 +36,8 @@ export default function AssignmentFormPage() {
   const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deadlineError, setDeadlineError] = useState<string | null>(null);
+  const deadlineInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,13 +92,20 @@ export default function AssignmentFormPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setDeadlineError(null);
     const score = Number(maxScore);
-    if (!classId || !title.trim() || !deadlineAt || !Number.isFinite(score) || score <= 0) {
+    if (!classId || !title.trim() || !Number.isFinite(score) || score <= 0) {
       setError('Vui lòng nhập lớp, tiêu đề, hạn nộp và thang điểm hợp lệ.');
       return;
     }
-    if (!editing && new Date(deadlineAt).getTime() <= Date.now()) {
-      setError('Hạn nộp phải ở tương lai khi tạo bài tập.');
+    if (!deadlineAt) {
+      setDeadlineError('Vui lòng chọn hạn nộp bài.');
+      deadlineInputRef.current?.focus();
+      return;
+    }
+    if (!editing && !isFutureDeadline(deadlineAt)) {
+      setDeadlineError('Hạn nộp phải ở tương lai khi tạo bài tập.');
+      deadlineInputRef.current?.focus();
       return;
     }
 
@@ -116,7 +129,14 @@ export default function AssignmentFormPage() {
       }
       void navigate(`/teacher/assignments?classId=${encodeURIComponent(classId)}`);
     } catch (saveError: unknown) {
-      setError(saveError instanceof Error ? saveError.message : 'Không thể lưu bài tập.');
+      if (!editing && saveError instanceof ApiClientError
+        && saveError.code === 'VALIDATION_ERROR'
+        && saveError.message.toLowerCase().includes('deadline')) {
+        setDeadlineError('Hạn nộp phải ở tương lai khi tạo bài tập.');
+        deadlineInputRef.current?.focus();
+      } else {
+        setError(saveError instanceof Error ? saveError.message : 'Không thể lưu bài tập.');
+      }
     } finally {
       setSaving(false);
     }
@@ -176,13 +196,33 @@ export default function AssignmentFormPage() {
           <label className="form-field">
             <span className="form-label">Hạn nộp (giờ Việt Nam)</span>
             <input
+              ref={deadlineInputRef}
               className="form-input"
               type="datetime-local"
               min={editing ? undefined : toDateTimeInput(new Date().toISOString())}
               value={deadlineAt}
-              onChange={(event) => setDeadlineAt(event.target.value)}
+              onChange={(event) => {
+                setDeadlineAt(event.target.value);
+                setDeadlineError(null);
+              }}
+              onInvalid={(event) => {
+                if (!deadlineAt) {
+                  event.preventDefault();
+                  setDeadlineError('Vui lòng chọn hạn nộp bài.');
+                } else if (!editing && !isFutureDeadline(deadlineAt)) {
+                  event.preventDefault();
+                  setDeadlineError('Hạn nộp phải ở tương lai khi tạo bài tập.');
+                }
+              }}
               required
+              aria-invalid={Boolean(deadlineError)}
+              aria-describedby={deadlineError ? 'assignment-deadline-error' : undefined}
             />
+            {deadlineError && (
+              <span id="assignment-deadline-error" className="assignment-inline-error" role="alert">
+                {deadlineError}
+              </span>
+            )}
           </label>
           <label className="form-field">
             <span className="form-label">Thang điểm</span>
@@ -190,7 +230,7 @@ export default function AssignmentFormPage() {
               className="form-input"
               type="number"
               min="0.01"
-              step="any"
+              step="0.01"
               value={maxScore}
               onChange={(event) => setMaxScore(event.target.value)}
               required

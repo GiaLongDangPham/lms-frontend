@@ -4,6 +4,7 @@ import {
   formatFileSize,
   getLockMessage,
   getMyPublishedResult,
+  isFutureDeadline,
   isSubmissionLocked,
   listAllAssignments,
   listAssignmentSubmissions,
@@ -47,22 +48,27 @@ describe('submission lock state', () => {
     expect(getLockMessage(gradedSubmission)).toBe('Bài đã được chấm. Bạn không thể nộp lại.');
   });
 
-  it('locks a submission whose deadline has passed and explains how to reopen it', () => {
-    const lateSubmission = { ...submission, canSubmit: false, lockedReason: 'DEADLINE_PASSED' as const };
-    expect(isSubmissionLocked(lateSubmission)).toBe(true);
-    expect(getLockMessage(lateSubmission)).toBe('Đã quá hạn nộp. Bạn chỉ có thể nộp lại khi giảng viên gia hạn.');
-  });
-
-  it('accepts deadline-locked submissions in the teacher submission list', async () => {
+  it('allows late resubmission when the API confirms submissions remain open', async () => {
     vi.stubGlobal('localStorage', { getItem: () => null });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      items: [{ ...submission, canSubmit: false, lockedReason: 'DEADLINE_PASSED' }],
+      items: [{
+        ...submission,
+        currentVersionNumber: 2,
+        versions: [{
+          versionNumber: 2,
+          submittedAt: '2026-10-28T11:00:00Z',
+          deadlineAtSubmission: '2026-10-27T10:00:00Z',
+          isLate: true,
+          files: [],
+        }],
+      }],
       page: { nextCursor: null },
     }))));
 
     const page = await listAssignmentSubmissions('assignment-1');
 
-    expect(page.items[0]?.lockedReason).toBe('DEADLINE_PASSED');
+    expect(page.items[0]?.versions[0]?.isLate).toBe(true);
+    expect(isSubmissionLocked(page.items[0] ?? null)).toBe(false);
   });
 
   it('surfaces malformed static mock submissions instead of rendering fake rows', async () => {
@@ -86,6 +92,17 @@ describe('submission lock state', () => {
 
     await expect(getMyPublishedResult('assignment-1'))
       .rejects.toThrow('kết quả chưa công bố');
+  });
+});
+
+describe('assignment deadline validation', () => {
+  const now = Date.parse('2026-11-20T10:00:00Z');
+
+  it('requires a valid future deadline when creating an assignment', () => {
+    expect(isFutureDeadline('2026-11-20T10:00:01Z', now)).toBe(true);
+    expect(isFutureDeadline('2026-11-20T10:00:00Z', now)).toBe(false);
+    expect(isFutureDeadline('2026-11-19T10:00:00Z', now)).toBe(false);
+    expect(isFutureDeadline('invalid', now)).toBe(false);
   });
 });
 
