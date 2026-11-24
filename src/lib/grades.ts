@@ -97,14 +97,37 @@ export function getGradeForTeacher(submissionId: string): Promise<Grade | null> 
   });
 }
 
+export class StaleSubmissionVersionError extends Error {
+  constructor() {
+    super('Sinh viên vừa nộp phiên bản mới nên điểm chưa được lưu. Hãy tải lại bài nộp, kiểm tra rồi lưu lại.');
+    this.name = 'StaleSubmissionVersionError';
+  }
+}
+
 export function saveGrade(
   submissionId: string,
   grade: { gradedVersionNumber: number; score: number; feedback: string | null },
 ): Promise<Grade> {
-  return apiFetch(`/submissions/${encodeURIComponent(submissionId)}/grade`, {
+  return apiFetch<Grade>(`/submissions/${encodeURIComponent(submissionId)}/grade`, {
     method: 'PUT',
     body: JSON.stringify(grade),
+  }).catch((error: unknown) => {
+    if (error instanceof ApiClientError && error.code === 'STALE_SUBMISSION_VERSION') {
+      throw new StaleSubmissionVersionError();
+    }
+    throw error;
   });
+}
+
+export type NumberedGradeHistoryEntry = GradeHistoryEntry & { ordinal: number };
+
+/** Published entries numbered 1..n in publication order, returned newest first. */
+export function getPublishedHistoryEntries(history: GradeHistory | null): NumberedGradeHistoryEntry[] {
+  return (history?.items ?? [])
+    .filter((entry) => entry.status === 'PUBLISHED')
+    .sort((left, right) => left.version - right.version)
+    .map((entry, index) => ({ ...entry, ordinal: index + 1 }))
+    .reverse();
 }
 
 export function saveAutomaticZeroCorrection(

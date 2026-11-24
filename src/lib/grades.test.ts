@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GradebookRow } from './grades';
+import type { GradebookRow, GradeHistoryEntry } from './grades';
 import {
   getMyPublishedGradeHistory,
   getAssignmentGradebook,
+  getPublishedHistoryEntries,
   getUnGradedRows,
   isValidGradeScore,
   publishAssignmentGrades,
   saveAutomaticZeroCorrection,
   saveGrade,
+  StaleSubmissionVersionError,
 } from './grades';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -66,6 +68,51 @@ describe('grade workflows', () => {
         body: JSON.stringify({ gradedVersionNumber: 2, score: 8.5, feedback: null }),
       }),
     );
+  });
+
+  it('reports a stale submission version in Vietnamese instead of the raw API message', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: 'STALE_SUBMISSION_VERSION',
+        message: 'Use the recorded graded version, or the current version for a first grade.',
+      },
+    }), { status: 409 })));
+
+    const saving = saveGrade('submission-1', { gradedVersionNumber: 1, score: 8, feedback: null });
+
+    await expect(saving).rejects.toBeInstanceOf(StaleSubmissionVersionError);
+    await expect(saving).rejects.toThrow(/phiên bản mới/);
+    await expect(saving).rejects.not.toThrow(/recorded graded version/);
+  });
+
+  it('numbers published history 1..n in publication order and lists the newest first', () => {
+    const entry = (version: number, status: GradeHistoryEntry['status'], score: number): GradeHistoryEntry => ({
+      version,
+      score,
+      status,
+      source: 'MANUAL',
+      changedBy: student,
+      changedAt: `2026-11-2${version.toString()}T10:00:00Z`,
+    });
+    const history = {
+      assignmentId: 'assignment-1',
+      student,
+      items: [
+        entry(4, 'PUBLISHED', 8),
+        entry(1, 'DRAFT', 5),
+        entry(2, 'DRAFT', 6),
+        entry(3, 'PUBLISHED', 7),
+        entry(5, 'PUBLISHED', 9),
+      ],
+    };
+
+    expect(getPublishedHistoryEntries(history).map(({ ordinal, score }) => [ordinal, score])).toEqual([
+      [3, 9],
+      [2, 8],
+      [1, 7],
+    ]);
+    expect(getPublishedHistoryEntries(null)).toEqual([]);
   });
 
   it('uses the assignment-wide publication endpoint', async () => {
