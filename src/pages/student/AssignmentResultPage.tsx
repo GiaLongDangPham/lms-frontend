@@ -9,6 +9,7 @@ import {
 } from '../../lib/assignments';
 import {
   getMyPublishedGradeHistory,
+  getPublishedHistoryEntries,
   type GradeHistory,
 } from '../../lib/grades';
 import {
@@ -59,7 +60,7 @@ export default function AssignmentResultPage() {
   if (loading) return <LoadingState label="Đang tải kết quả…" />;
   if (error || !assignment) return <ErrorState message={error ?? 'Không tìm thấy bài tập.'} />;
 
-  const publishedHistory = history?.items.filter((item) => item.status === 'PUBLISHED') ?? [];
+  const publishedHistory = getPublishedHistoryEntries(history);
 
   return (
     <section className="assignment-page">
@@ -95,9 +96,9 @@ export default function AssignmentResultPage() {
         <section className="assignment-card">
           <h2>Lịch sử kết quả đã công bố</h2>
           <ol className="assignment-grade-history">
-            {[...publishedHistory].sort((left, right) => left.version - right.version).map((entry, index) => (
+            {publishedHistory.map((entry) => (
               <li key={entry.version}>
-                <strong>Lần {index + 1}: {entry.score} / {assignment.maxScore}</strong>
+                <strong>Lần {entry.ordinal}: {entry.score} / {assignment.maxScore}</strong>
                 <span>{formatDateTime(entry.changedAt)}</span>
                 {entry.feedback && <p>{entry.feedback}</p>}
               </li>

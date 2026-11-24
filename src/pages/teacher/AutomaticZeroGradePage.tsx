@@ -7,6 +7,7 @@ import {
   type Assignment,
 } from '../../lib/assignments';
 import {
+  getPublishedHistoryEntries,
   getTeacherGradeHistory,
   isValidGradeScore,
   saveAutomaticZeroCorrection,
@@ -49,9 +50,7 @@ export default function AutomaticZeroGradePage() {
         )) {
           throw new Error('API trả về lịch sử điểm không thuộc sinh viên hoặc bài tập đã chọn.');
         }
-        const publishedEntries = loadedHistory?.items
-          .filter((entry) => entry.status === 'PUBLISHED')
-          .sort((left, right) => right.version - left.version) ?? [];
+        const publishedEntries = getPublishedHistoryEntries(loadedHistory);
         const automaticZeroEntry = publishedEntries
           .find((entry) => entry.source === 'AUTO_ZERO_NO_SUBMISSION');
         const latestPublished = publishedEntries[0] ?? null;
@@ -119,9 +118,7 @@ export default function AutomaticZeroGradePage() {
   if (error && !assignment) return <ErrorState message={error} />;
   if (!assignment) return <ErrorState message="Không tìm thấy bài tập." />;
 
-  const publishedEntries = history?.items
-    .filter((entry) => entry.status === 'PUBLISHED')
-    .sort((left, right) => right.version - left.version) ?? [];
+  const publishedEntries = getPublishedHistoryEntries(history);
   const hasAutomaticZero = publishedEntries.some((entry) => entry.source === 'AUTO_ZERO_NO_SUBMISSION');
   const latestPublished = publishedEntries[0] ?? null;
 
@@ -187,7 +184,7 @@ export default function AutomaticZeroGradePage() {
             <ol className="assignment-grade-history">
               {publishedEntries.map((entry) => (
                 <li key={entry.version}>
-                  <strong>Lần {entry.version}: {entry.score} / {assignment.maxScore}</strong>
+                  <strong>Lần {entry.ordinal}:{entry.score} / {assignment.maxScore}</strong>
                   <span>{formatDateTime(entry.changedAt)} · {entry.changedBy.fullName} · {
                     entry.source === 'AUTO_ZERO_NO_SUBMISSION' ? 'Điểm 0 tự động' : 'Điều chỉnh thủ công'
                   }</span>

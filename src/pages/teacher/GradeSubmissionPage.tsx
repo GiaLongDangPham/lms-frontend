@@ -11,10 +11,12 @@ import {
 } from '../../lib/assignments';
 import {
   getGradeForTeacher,
+  getPublishedHistoryEntries,
   getSubmissionForGrading,
   getTeacherGradeHistory,
   isValidGradeScore,
   saveGrade,
+  StaleSubmissionVersionError,
   type Grade,
   type GradeHistory,
 } from '../../lib/grades';
@@ -24,6 +26,18 @@ import {
   ErrorState,
   LoadingState,
 } from '../../components/assignment/AssignmentUI';
+
+async function loadGradeData(assignmentId: string, submissionId: string) {
+  const [assignment, submission] = await Promise.all([
+    getAssignment(assignmentId),
+    getSubmissionForGrading(assignmentId, submissionId),
+  ]);
+  const [grade, history] = await Promise.all([
+    getGradeForTeacher(submissionId),
+    getTeacherGradeHistory(assignmentId, submission.student.id),
+  ]);
+  return { assignment, submission, grade, history };
+}
 
 export default function GradeSubmissionPage() {
   const { assignmentId = '', submissionId = '' } = useParams();
@@ -47,18 +61,13 @@ export default function GradeSubmissionPage() {
       setLoading(true);
       setError(null);
       try {
-        const [loadedAssignment, loadedSubmission] = await Promise.all([
-          getAssignment(assignmentId),
-          getSubmissionForGrading(assignmentId, submissionId),
-        ]);
-        const [loadedGrade, loadedHistory] = await Promise.all([
-          getGradeForTeacher(submissionId),
-          getTeacherGradeHistory(assignmentId, loadedSubmission.student.id),
-        ]);
+        const {
+          assignment: loadedAssignment,
+          submission: loadedSubmission,
+          grade: loadedGrade,
+          history: loadedHistory,
+        } = await loadGradeData(assignmentId, submissionId);
         if (cancelled) return;
-        if (loadedSubmission.assignmentId !== assignmentId) {
-          throw new Error('Bài nộp không thuộc bài tập đã chọn.');
-        }
         setAssignment(loadedAssignment);
         setSubmission(loadedSubmission);
         setGrade(loadedGrade);
@@ -89,6 +98,22 @@ export default function GradeSubmissionPage() {
     }
   }
 
+  // The student submitted a newer version while this form was open: refresh the
+  // submission and grade data but keep the score and feedback the teacher typed.
+  async function reloadAfterNewVersion() {
+    try {
+      const reloaded = await loadGradeData(assignmentId, submissionId);
+      setAssignment(reloaded.assignment);
+      setSubmission(reloaded.submission);
+      setGrade(reloaded.grade);
+      setHistory(reloaded.history);
+      setError(`Sinh viên vừa nộp phiên bản mới (#${reloaded.submission.currentVersionNumber.toString()}). `
+        + 'Bài nộp đã được tải lại — hãy kiểm tra lại rồi bấm Lưu. Điểm và nhận xét bạn đã nhập vẫn được giữ.');
+    } catch {
+      setError('Sinh viên vừa nộp phiên bản mới nên điểm chưa được lưu, và không tải lại được bài nộp. Hãy tải lại trang.');
+    }
+  }
+
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!assignment || !submission) return;
@@ -104,7 +129,7 @@ export default function GradeSubmissionPage() {
     setNotice(null);
     try {
       const saved = await saveGrade(submission.id, {
-        gradedVersionNumber: submission.currentVersionNumber,
+        gradedVersionNumber: grade?.gradedVersionNumber ?? submission.currentVersionNumber,
         score: Number(score),
         feedback: feedback.trim() || null,
       });
@@ -120,7 +145,11 @@ export default function GradeSubmissionPage() {
         setError(`Điểm đã được lưu, nhưng không tải lại được lịch sử: ${historyError instanceof Error ? historyError.message : 'Lỗi không xác định.'}`);
       }
     } catch (saveError: unknown) {
-      setError(saveError instanceof Error ? saveError.message : 'Không lưu được điểm.');
+      if (saveError instanceof StaleSubmissionVersionError) {
+        await reloadAfterNewVersion();
+      } else {
+        setError(saveError instanceof Error ? saveError.message : 'Không lưu được điểm.');
+      }
     } finally {
       setSaving(false);
     }
@@ -133,7 +162,7 @@ export default function GradeSubmissionPage() {
   const currentVersion = submission.versions.find(
     (version) => version.versionNumber === submission.currentVersionNumber,
   );
-  const publishedHistory = history?.items.filter((item) => item.status === 'PUBLISHED') ?? [];
+  const publishedHistory = getPublishedHistoryEntries(history);
 
   return (
     <section className="assignment-page">
@@ -216,9 +245,9 @@ export default function GradeSubmissionPage() {
         <section className="assignment-card">
           <h2>Lịch sử điểm đã công bố</h2>
           <ol className="assignment-grade-history">
-            {[...publishedHistory].sort((left, right) => right.version - left.version).map((entry) => (
+            {publishedHistory.map((entry) => (
               <li key={entry.version}>
-                <strong>Lần {entry.version}: {entry.score} / {assignment.maxScore}</strong>
+                <strong>Lần {entry.ordinal}:{entry.score} / {assignment.maxScore}</strong>
                 <span>{formatDateTime(entry.changedAt)} · {entry.changedBy.fullName}</span>
                 {entry.feedback && <p>{entry.feedback}</p>}
               </li>
