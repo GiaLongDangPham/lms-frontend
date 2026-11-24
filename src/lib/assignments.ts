@@ -59,7 +59,7 @@ export interface Submission {
   currentVersionNumber: number;
   versions: SubmissionVersion[];
   canSubmit: boolean;
-  lockedReason: 'GRADED' | 'DEADLINE_PASSED' | null;
+  lockedReason: 'GRADED' | null;
   createdAt: string;
   grade?: GradeSummary | null;
 }
@@ -113,7 +113,7 @@ function isSubmission(value: unknown): value is Submission {
     && typeof value.student.schoolCode === 'string'
     && typeof value.currentVersionNumber === 'number'
     && typeof value.canSubmit === 'boolean'
-    && (value.lockedReason === null || value.lockedReason === 'GRADED' || value.lockedReason === 'DEADLINE_PASSED')
+    && (value.lockedReason === null || value.lockedReason === 'GRADED')
     && typeof value.createdAt === 'string'
     && value.versions.every((version) => isRecord(version)
       && typeof version.versionNumber === 'number'
@@ -136,17 +136,19 @@ function parseSubmissionPage(value: unknown): Page<Submission> {
 }
 
 export function isSubmissionLocked(submission: Submission | null): boolean {
-  return submission !== null && (!submission.canSubmit || submission.lockedReason !== null);
+  return submission !== null && (!submission.canSubmit || submission.lockedReason === 'GRADED');
 }
 
 export function getLockMessage(submission: Submission): string {
   if (submission.lockedReason === 'GRADED') {
     return 'Bài đã được chấm. Bạn không thể nộp lại.';
   }
-  if (submission.lockedReason === 'DEADLINE_PASSED') {
-    return 'Đã quá hạn nộp. Bạn chỉ có thể nộp lại khi giảng viên gia hạn.';
-  }
   return 'Hiện tại bạn không thể nộp hoặc nộp lại bài này.';
+}
+
+export function isFutureDeadline(value: string, now = Date.now()): boolean {
+  const deadline = Date.parse(value);
+  return Number.isFinite(deadline) && deadline > now;
 }
 
 export function listClasses(cursor?: string | null): Promise<Page<ClassSummary>> {
