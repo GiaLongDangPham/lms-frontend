@@ -11,13 +11,14 @@ const dashboardByRole: Record<Role, string> = {
 
 interface AuthLayoutProps {
   children: React.ReactNode;
+  redirectSignedIn?: boolean;
 }
 
-export default function AuthLayout({ children }: AuthLayoutProps) {
+export default function AuthLayout({ children, redirectSignedIn = true }: AuthLayoutProps) {
   const { user, isLoading } = useAuth();
 
   // Nếu đã đăng nhập, redirect về dashboard đúng role
-  if (!isLoading && user) {
+  if (redirectSignedIn && !isLoading && user) {
     return <Navigate to={dashboardByRole[user.role]} replace />;
   }
 

@@ -1,0 +1,327 @@
+import { ApiClientError, apiFetch, apiFetchBlob } from './apiClient';
+
+export interface ClassSummary {
+  id: string;
+  code: string;
+  courseCode: string;
+  name: string;
+  term: string;
+  description?: string | null;
+}
+
+export interface FileRecord {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export type StudentAssignmentStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'LATE' | 'GRADED' | null;
+
+export interface Assignment {
+  id: string;
+  classId: string;
+  title: string;
+  description: string | null;
+  deadlineAt: string;
+  maxScore: number;
+  files: FileRecord[];
+  submittedCount?: number;
+  studentCount?: number;
+  mySubmissionStatus?: StudentAssignmentStatus;
+  createdAt: string;
+}
+
+export interface SubmissionVersion {
+  versionNumber: number;
+  submittedAt: string;
+  deadlineAtSubmission: string;
+  isLate: boolean;
+  files: FileRecord[];
+}
+
+export interface GradeSummary {
+  status: 'DRAFT' | 'PUBLISHED';
+  source: 'MANUAL' | 'AUTO_ZERO_NO_SUBMISSION';
+  score?: number;
+}
+
+export interface Submission {
+  id: string;
+  assignmentId: string;
+  student: {
+    id: string;
+    schoolCode: string;
+    fullName: string;
+    role: 'STUDENT';
+  };
+  currentVersionNumber: number;
+  versions: SubmissionVersion[];
+  canSubmit: boolean;
+  lockedReason: 'GRADED' | null;
+  createdAt: string;
+  grade?: GradeSummary | null;
+}
+
+export interface Enrollment {
+  id: string;
+  classId: string;
+  student: Submission['student'];
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PublishedResult {
+  assignmentId: string;
+  student: Submission['student'];
+  submissionId: string | null;
+  gradedVersionNumber: number | null;
+  score: number;
+  feedback: string | null;
+  status: 'PUBLISHED';
+  source: 'MANUAL' | 'AUTO_ZERO_NO_SUBMISSION';
+  publishedAt: string;
+  gradedBy?: { id: string; schoolCode: string; fullName: string; role: string } | null;
+}
+
+export interface Page<T> {
+  items: T[];
+  page: {
+    nextCursor: string | null;
+  };
+}
+
+const listLimit = 100;
+
+export function pageQuery(cursor?: string | null): string {
+  const params = new URLSearchParams({ limit: String(listLimit) });
+  if (cursor) params.set('cursor', cursor);
+  return `?${params.toString()}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isSubmission(value: unknown): value is Submission {
+  if (!isRecord(value) || !isRecord(value.student) || !Array.isArray(value.versions)) return false;
+  return typeof value.id === 'string'
+    && typeof value.assignmentId === 'string'
+    && typeof value.student.id === 'string'
+    && typeof value.student.fullName === 'string'
+    && typeof value.student.schoolCode === 'string'
+    && typeof value.currentVersionNumber === 'number'
+    && typeof value.canSubmit === 'boolean'
+    && (value.lockedReason === null || value.lockedReason === 'GRADED')
+    && typeof value.createdAt === 'string'
+    && value.versions.every((version) => isRecord(version)
+      && typeof version.versionNumber === 'number'
+      && typeof version.submittedAt === 'string'
+      && typeof version.deadlineAtSubmission === 'string'
+      && typeof version.isLate === 'boolean'
+      && Array.isArray(version.files));
+}
+
+function parseSubmissionPage(value: unknown): Page<Submission> {
+  if (!isRecord(value) || !Array.isArray(value.items) || !isRecord(value.page)
+    || !(value.page.nextCursor === null || typeof value.page.nextCursor === 'string')
+    || !value.items.every(isSubmission)) {
+    throw new Error('API trả về danh sách bài nộp không đúng cấu trúc OpenAPI. Kiểm tra phiên bản mock/API.');
+  }
+  return {
+    items: value.items,
+    page: { nextCursor: value.page.nextCursor },
+  };
+}
+
+export function isSubmissionLocked(submission: Submission | null): boolean {
+  return submission !== null && (!submission.canSubmit || submission.lockedReason === 'GRADED');
+}
+
+export function getLockMessage(submission: Submission): string {
+  if (submission.lockedReason === 'GRADED') {
+    return 'Bài đã được chấm. Bạn không thể nộp lại.';
+  }
+  return 'Hiện tại bạn không thể nộp hoặc nộp lại bài này.';
+}
+
+export function isFutureDeadline(value: string, now = Date.now()): boolean {
+  const deadline = Date.parse(value);
+  return Number.isFinite(deadline) && deadline > now;
+}
+
+export function listClasses(cursor?: string | null): Promise<Page<ClassSummary>> {
+  return apiFetch(`/classes${pageQuery(cursor)}`);
+}
+
+export function listAssignments(
+  classId: string,
+  cursor?: string | null,
+): Promise<Page<Assignment>> {
+  return apiFetch(`/classes/${encodeURIComponent(classId)}/assignments${pageQuery(cursor)}`);
+}
+
+export async function listAllAssignments(classId: string): Promise<Assignment[]> {
+  const assignments: Assignment[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: Page<Assignment> = await listAssignments(classId, cursor);
+    assignments.push(...page.items);
+    cursor = page.page.nextCursor;
+  } while (cursor);
+  return assignments;
+}
+
+// Upcoming deadlines first (nearest first), then overdue ones (most recently overdue first).
+export function sortAssignmentsByDeadline<T extends { deadlineAt: string }>(
+  items: T[],
+  now: number = Date.now(),
+): T[] {
+  const deadline = (item: T) => new Date(item.deadlineAt).getTime();
+  const upcoming = items.filter((item) => deadline(item) >= now).sort((a, b) => deadline(a) - deadline(b));
+  const overdue = items.filter((item) => deadline(item) < now).sort((a, b) => deadline(b) - deadline(a));
+  return [...upcoming, ...overdue];
+}
+
+export function getAssignment(assignmentId: string): Promise<Assignment> {
+  return apiFetch(`/assignments/${encodeURIComponent(assignmentId)}`);
+}
+
+export function createAssignment(
+  classId: string,
+  assignment: {
+    title: string;
+    description: string | null;
+    deadlineAt: string;
+    maxScore: number;
+    fileIds: string[];
+  },
+): Promise<Assignment> {
+  return apiFetch(`/classes/${encodeURIComponent(classId)}/assignments`, {
+    method: 'POST',
+    body: JSON.stringify(assignment),
+  });
+}
+
+export function updateAssignment(
+  assignmentId: string,
+  assignment: {
+    title: string;
+    description: string | null;
+    deadlineAt: string;
+    maxScore: number;
+    fileIds: string[];
+  },
+): Promise<Assignment> {
+  return apiFetch(`/assignments/${encodeURIComponent(assignmentId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(assignment),
+  });
+}
+
+const uploadExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'json',
+  'xml', 'html', 'css', 'c', 'h', 'cpp', 'hpp', 'java', 'py', 'js', 'ts', 'sql', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'zip'];
+export const maxUploadBytes = 25 * 1024 * 1024;
+
+export const uploadAccept = uploadExtensions.map((extension) => `.${extension}`).join(',');
+
+export function findUnsupportedUpload(files: File[]): File | undefined {
+  return files.find((file) => !file.name.includes('.') || !uploadExtensions.includes(file.name.split('.').pop()?.toLowerCase() ?? ''));
+}
+
+export function uploadFile(file: File): Promise<FileRecord> {
+  if (file.size === 0 || file.size > maxUploadBytes) return Promise.reject(new Error(`${file.name}: tệp phải có dữ liệu và không quá 25 MiB.`));
+  if (findUnsupportedUpload([file])) return Promise.reject(new Error(`${file.name}: loại tệp không được hỗ trợ.`));
+  const body = new FormData();
+  body.set('file', file);
+  return apiFetch('/files', { method: 'POST', body });
+}
+
+export async function downloadFile(file: FileRecord): Promise<void> {
+  const blob = await apiFetchBlob(`/files/${encodeURIComponent(file.id)}/download`);
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = file.originalName;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+}
+
+export function listAssignmentSubmissions(
+  assignmentId: string,
+  cursor?: string | null,
+): Promise<Page<Submission>> {
+  return apiFetch<unknown>(`/assignments/${encodeURIComponent(assignmentId)}/submissions${pageQuery(cursor)}`)
+    .then(parseSubmissionPage);
+}
+
+export function listEnrollments(
+  classId: string,
+  cursor?: string | null,
+): Promise<Page<Enrollment>> {
+  return apiFetch(`/classes/${encodeURIComponent(classId)}/enrollments${pageQuery(cursor)}`);
+}
+
+export async function getMySubmission(assignmentId: string): Promise<Submission | null> {
+  try {
+    return await apiFetch(`/assignments/${encodeURIComponent(assignmentId)}/my-submission`);
+  } catch (error: unknown) {
+    if (error instanceof ApiClientError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function getMyPublishedResult(assignmentId: string): Promise<PublishedResult | null> {
+  try {
+    const result = await apiFetch<PublishedResult>(`/assignments/${encodeURIComponent(assignmentId)}/my-result`);
+    if (result.status !== 'PUBLISHED') {
+      throw new Error('API trả về kết quả chưa công bố cho tài khoản sinh viên.');
+    }
+    return result;
+  } catch (error: unknown) {
+    if (error instanceof ApiClientError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function submitAssignment(assignmentId: string, fileIds: string[]): Promise<Submission> {
+  return apiFetch<Submission>(`/assignments/${encodeURIComponent(assignmentId)}/submissions`, {
+    method: 'POST',
+    body: JSON.stringify({ fileIds }),
+  }).catch((error: unknown) => {
+    if (error instanceof ApiClientError && error.code === 'GRADE_LOCKS_SUBMISSION') {
+      throw new Error('Bài đã được chấm hoặc công bố kết quả. Bạn không thể nộp hoặc nộp lại.');
+    }
+    throw error;
+  });
+}
+
+export function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+export function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+const sizeFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+
+export function formatFileSize(sizeBytes: number): string {
+  if (sizeBytes < 1024 * 1024) return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
+  return `${sizeFormat.format(sizeBytes / (1024 * 1024))} MB`;
+}
+
+export function toDateTimeInput(value: string): string {
+  const date = new Date(value);
+  const offsetMinutes = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offsetMinutes * 60_000);
+  return localDate.toISOString().slice(0, 16);
+}

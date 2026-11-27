@@ -10,6 +10,7 @@ export interface User {
   email: string | null;
   role: Role;
   isActive: boolean;
+  mustChangePassword?: boolean;
   createdAt: string;
 }
 
